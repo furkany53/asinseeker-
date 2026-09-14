@@ -1,0 +1,51 @@
+__pycache__/
+*.pyc
+# build_tmp/ tamamen calisma klasoru (PyInstaller ciktisi) -- SADECE gercek
+# build config dosyalari (spec/version-info) izlenir, geri kalan (calisma
+# dosyalari, PyInstaller'in urettigi ozet/uyari dosyalari) haric tutulur.
+build_tmp/*
+!build_tmp/*.spec
+!build_tmp/version_info.txt
+dist/*.exe
+dist/*.zip
+keepa_screenshots/
+*.csv
+tarama_*_temiz.txt
+tarama_*.log
+keepa_api_key.txt
+keepa_arama_*.txt
+keepa_arama_*/
+node_modules/
+chrome_debug/
+*_probe_output.json
+license_signing_key.pem
+*.lock
+
+# Vendored/bagimsiz alt git depolari -- bu repoya GOMULMEZ, kendi ayri
+# repolari olarak kalır (bkz. CLAUDE.md "Vendored skill/plugin repos").
+/keepa_sync/
+/andrej-karpathy-skills/
+/caveman/
+/skill-creator/
+/superpowers/
+/ui-ux-pro-max-skill/
+/OpenMontage/
+
+# Editor-ozel ayarlar
+.vscode/
+
+# Calisma verisi / log / debug ciktilari -- kaynak kod degil, tekrar
+# uretilebilir ya da kisisel/gecici veri.
+/erhan_kontrol/
+/keepa_full_kontrol/
+hata_raporu.txt
+TAMAMLANDI_*.txt
+Yükleme Havuzu ASIN Listesi.txt
+asin_list.txt
+havuz_asin_listesi.txt
+yukleme_listesi.txt
+keepa_finder_calisma_log.txt
+keepa_recheck_progress.txt
+keepa_recheck_stdout.log
+tam_liste_log.txt
+easycentral_action_error.png

@@ -1,0 +1,11 @@
+{
+  "name": "easy-keepa-filter-automation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node easy-keepa-filter.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.50.1"
+  }
+}
