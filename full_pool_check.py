@@ -80,6 +80,8 @@ PREVIOUSLY_CHECKED_FILES = [
 # (durum bilgisi yok, sadece "bunlari atla" icin).
 EXCLUDE_ASIN_FILES = [
     BASE_DIR / "keepa_sync" / "easycentral_batch_1.txt",
+    BASE_DIR / "keepa_sync" / "easycentral_batch_2.txt",
+    BASE_DIR / "keepa_sync" / "easycentral_batch_3.txt",
 ]
 # run_web_prefilter.py'nin (Keepa web sitesindeki Product Viewer'i, API
 # token'larindan AYRI bir kotayla kullanarak) onceden hesapladigi "1 yillik
@@ -296,7 +298,7 @@ def check_one(asin):
     try:
         result = keepa_check_detailed_api(
             asin, api_key=api_key, require_year=True, check_gaps=True, check_dead_stock=False,
-            check_customs_risk=True,
+            check_customs_risk=True, check_target_market=True,
         )
         return asin, result, None
     except Exception as error:

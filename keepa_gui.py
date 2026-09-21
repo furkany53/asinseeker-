@@ -87,6 +87,7 @@ sys.path.insert(0, str(BASE_DIR))
 
 import ctypes  # noqa: E402
 
+import harvest_seller_asins as hs  # noqa: E402
 import keepa_api_settings  # noqa: E402
 import keepa_credentials  # noqa: E402
 import keepa_finder as kf  # noqa: E402
@@ -127,6 +128,74 @@ UPLOAD_TXT_NAME = "yukleme_listesi.txt"
 ASIN_PATTERN = re.compile(r"B0[A-Z0-9]{8}")
 MAX_RETRIES = 2  # gecici (ag/Keepa) hatalarinda ASIN basina fazladan deneme sayisi
 DEFINITIVE_STATUSES = {"upload", "delete"}  # "hata"/"durduruldu" kesin sonuc sayilmaz, tekrar denenmeli
+
+# Bu liste 2026-09-16'da CANLI dogrulandi (Keepa'nin /product ucuna her
+# domain ID icin gercek bir cagri yapilip 1-6 ve 8-14'un gecerli, 7/15/16'nin
+# gecersiz oldugu teyit edildi -- proje kurali: Keepa parametresini
+# dogrulamadan koda yazma). 13/14'un TAM ulke adi Keepa'nin API yanitindan
+# okunamiyor (sadece ID gecerli/gecersiz diye donuyor); bu ikisi icin ad,
+# bilinen/genel yayinlanmis Keepa tablosundan alindi -- SUPHELIYSE
+# musterinin kendi ulkesi icin ID'yi Keepa sitesinden (Product Finder
+# ekrani, ulke secici) teyit etmesi onerilir. Hem KAYNAK (nereden ASIN
+# aranip okunacak) hem HEDEF (dropshipping'in siparisi nereden karsilayacagi)
+# pazar secimlerinde AYNI liste kullanilir.
+KEEPA_MARKET_DOMAINS = [
+    ("Amazon.com (ABD)", 1),
+    ("Amazon.co.uk (İngiltere)", 2),
+    ("Amazon.de (Almanya)", 3),
+    ("Amazon.fr (Fransa)", 4),
+    ("Amazon.co.jp (Japonya)", 5),
+    ("Amazon.ca (Kanada)", 6),
+    ("Amazon.it (İtalya)", 8),
+    ("Amazon.es (İspanya)", 9),
+    ("Amazon.in (Hindistan)", 10),
+    ("Amazon.com.mx (Meksika)", 11),
+    ("Amazon.com.br (Brezilya)", 12),
+    ("Amazon.com.au (Avustralya)", 13),
+    ("Amazon.nl (Hollanda)", 14),
+]
+# Bu pazarlar icin S1-S5 hazir stratejiler VE kategori-plani girdileri
+# JPY (yen) fiyat araliklariyla ayarlanmis -- baska bir kaynak pazarda
+# kullanilirsa anlamsiz sonuc verir. Sadece Japonya (5) seciliyken
+# gosterilir; digerlerinde musteri manuel filtreleri KENDI para biriminde
+# ayarlamak zorunda (zaten duzenlenebilir alanlar).
+JPY_TUNED_SOURCE_DOMAIN = 5
+
+# Keepa domain ID -> o pazarin kendi para birimi. Fiyat filtreleri
+# (LISTPRICE_MIN/MAX) HER ZAMAN secili kaynak pazarin kendi para biriminde
+# girilir (Keepa boyle bekliyor) -- musteriden geldi: kutuya "500" yazinca
+# hangi para biriminde oldugu belli degildi, kafa karistiriyordu. Simdi
+# "Fiyat min/max" etiketleri secili pazara gore dinamik guncelleniyor
+# (bkz. _update_price_currency_labels).
+KEEPA_DOMAIN_CURRENCY = {
+    1: "USD", 2: "GBP", 3: "EUR", 4: "EUR", 5: "JPY", 6: "CAD",
+    8: "EUR", 9: "EUR", 10: "INR", 11: "MXN", 12: "BRL", 13: "AUD", 14: "EUR",
+}
+
+# 1 USD'nin YAKLASIK karsiligi (sadece "30-500 dolar araligi" gibi anlasilir
+# bir varsayilan Fiyat min/max bandi secili pazarin kendi para birimine
+# cevrilsin diye -- musteriden geldi. Kesin/canli doviz kuru DEGIL, gunluk
+# dalgalanir; sadece mantikli bir baslangic degeri sunmak icin.
+KEEPA_DOMAIN_USD_RATE = {
+    1: 1, 2: 0.79, 3: 0.92, 4: 0.92, 5: 150, 6: 1.37,
+    8: 0.92, 9: 0.92, 10: 83, 11: 18, 12: 5.4, 13: 1.52, 14: 0.92,
+}
+DEFAULT_PRICE_MIN_USD = 30
+DEFAULT_PRICE_MAX_USD = 500
+
+
+def _round_nice(value):
+    """Doviz cevriminden cikan sayiyi okunakli/yuvarlak bir degere ceker."""
+    if value >= 1000:
+        return int(round(value / 50.0)) * 50
+    if value >= 100:
+        return int(round(value / 10.0)) * 10
+    return int(round(value))
+
+
+def _default_price_for_domain(domain, usd_amount):
+    rate = KEEPA_DOMAIN_USD_RATE.get(domain, 1)
+    return _round_nice(usd_amount * rate)
 
 
 def find_previous_results(output_dir):
@@ -236,6 +305,65 @@ gönder, birlikte bakalım.
 """
 
 
+class HelpTooltip:
+    """Bir '?' etiketinin uzerine gelince aciklama balonu gosterir --
+    Tkinter'da hazir bir tooltip widget'i olmadigi icin kucuk bir Toplevel
+    ile kendimiz yapiyoruz. ONEMLI: balon pencerenin/ekranin disina TASMASIN
+    diye konum, ekran genisligine/yuksekligine gore SIKISTIRILIYOR
+    (kullanicidan geldi -- "None" yazan alanlar kafa karistirdigi icin
+    eklenen aciklama balonlarinin kendisi de tasip yeni bir kafa karisikligi
+    yaratmasin diye)."""
+
+    def __init__(self, parent, text, wraplength=320):
+        self.text = text
+        self.wraplength = wraplength
+        self.tip_window = None
+        label = ttk.Label(
+            parent, text=" ? ", foreground="#fff", background="#5a7fb5",
+            font=("Segoe UI", 7, "bold"), cursor="question_arrow",
+        )
+        label.bind("<Enter>", self._show)
+        label.bind("<Leave>", self._hide)
+        self.widget = label
+
+    def _show(self, _event=None):
+        if self.tip_window is not None:
+            return
+        widget = self.widget
+        x = widget.winfo_rootx() + 12
+        y = widget.winfo_rooty() + widget.winfo_height() + 4
+
+        tw = tk.Toplevel(widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_attributes("-topmost", True)
+        frame = ttk.Frame(tw, relief="solid", borderwidth=1)
+        frame.pack()
+        ttk.Label(
+            frame, text=self.text, background="#ffffe0", foreground="#000",
+            wraplength=self.wraplength, justify="left", padding=(6, 4),
+        ).pack()
+        tw.update_idletasks()
+
+        # Ekranin (pencerenin degil, TUM ekranin -- balon pencere disina da
+        # tasabilir cunku Toplevel) sagindan/altindan tasarsa konumu
+        # ICERI dogru kaydir.
+        screen_w = widget.winfo_screenwidth()
+        screen_h = widget.winfo_screenheight()
+        tip_w = tw.winfo_reqwidth()
+        tip_h = tw.winfo_reqheight()
+        if x + tip_w > screen_w:
+            x = max(0, screen_w - tip_w - 8)
+        if y + tip_h > screen_h:
+            y = max(0, widget.winfo_rooty() - tip_h - 4)
+        tw.wm_geometry(f"+{x}+{y}")
+        self.tip_window = tw
+
+    def _hide(self, _event=None):
+        if self.tip_window is not None:
+            self.tip_window.destroy()
+            self.tip_window = None
+
+
 class KeepaApp:
     def __init__(self, root):
         self.root = root
@@ -247,21 +375,26 @@ class KeepaApp:
         self.output_dir = BASE_DIR
         self._apply_style()
         self._build_menu()
+        self._build_source_market_bar()
         self.notebook = ttk.Notebook(self.root)
-        self.notebook.grid(row=0, column=0, sticky="nsew")
-        self.root.rowconfigure(0, weight=1)
+        self.notebook.grid(row=1, column=0, sticky="nsew")
+        self.root.rowconfigure(1, weight=1)
         self.root.columnconfigure(0, weight=1)
 
         finder_tab = ttk.Frame(self.notebook)
         check_tab = ttk.Frame(self.notebook)
         send_tab = ttk.Frame(self.notebook)
+        rakip_tab = ttk.Frame(self.notebook)
         self.notebook.add(finder_tab, text="ASIN Bul")
         self.notebook.add(check_tab, text="Temizle")
         self.notebook.add(send_tab, text="Easy'e Gönder")
+        self.notebook.add(rakip_tab, text="Rakip Kopyala")
 
         self._build_finder_tab(finder_tab)
         self._build_ui(check_tab)
         self._build_send_tab(send_tab)
+        self._build_rakip_tab(rakip_tab)
+        self._refresh_strategy_options()
 
         # Sekmeler farkli genislikte icerik tasiyabiliyor (orn. Temizle
         # sekmesine sonradan eklenen JP gumruk riski onay kutusu satiri
@@ -383,6 +516,8 @@ class KeepaApp:
         settings_menu.add_command(label="Keepa Hesabı...", command=self.show_account_dialog)
         settings_menu.add_command(label="Keepa API Ayarları...", command=self.show_api_settings_dialog)
         settings_menu.add_command(label="Lisans Anahtarı Gir...", command=self.show_license_dialog)
+        settings_menu.add_separator()
+        settings_menu.add_command(label="ASIN Bul - Kayıt Klasörü...", command=self.show_finder_output_dir_dialog)
         menubar.add_cascade(label="Ayarlar", menu=settings_menu)
 
         self.view_mode_var = tk.StringVar(value="normal")
@@ -406,6 +541,112 @@ class KeepaApp:
 
         self.root.config(menu=menubar)
 
+    # ------------------------------------------------------- kaynak pazar
+    def _build_source_market_bar(self):
+        """TUM sekmelerden GORUNEN, bariz bir kaynak-pazar secici --
+        kullanicidan geldi: program eskiden HER YERDE (ASIN Bul'un aradigi
+        pazar VE Temizle'nin okudugu grafik) sessizce JP'ye (domain=5) sabitti,
+        degistirmenin tek yolu Finder sekmesine gomulu, kolay kacan bir
+        "Domain" sayi kutusuydu (o kutu artik KALDIRILDI, yerini bu aldı).
+        Burada secilen deger notebook'un HANGI sekmesi acik olursa olsun
+        gecerlidir -- bu yuzden bilerek notebook'un DISINDA, ustunde."""
+        bar = ttk.Frame(self.root, padding=(10, 6))
+        bar.grid(row=0, column=0, sticky="ew")
+        ttk.Label(bar, text="Kaynak Pazar:", font=("Segoe UI", 9, "bold")).pack(side="left")
+
+        self._source_market_label_to_id = {label: str(dom) for label, dom in KEEPA_MARKET_DOMAINS}
+        default_label = next(
+            (label for label, dom in KEEPA_MARKET_DOMAINS if dom == JPY_TUNED_SOURCE_DOMAIN),
+            KEEPA_MARKET_DOMAINS[0][0],
+        )
+        self.source_market_domain_var = tk.StringVar(value=str(JPY_TUNED_SOURCE_DOMAIN))
+        self.source_market_display_var = tk.StringVar(value=default_label)
+        self.source_market_combo = ttk.Combobox(
+            bar, textvariable=self.source_market_display_var,
+            values=[label for label, _ in KEEPA_MARKET_DOMAINS], width=26, state="readonly",
+        )
+        self.source_market_combo.pack(side="left", padx=(6, 0))
+        self.source_market_combo.bind("<<ComboboxSelected>>", self._on_source_market_change)
+        HelpTooltip(
+            bar,
+            "ASIN Bul sekmesinin hangi ülkede arama yapacağını VE Temizle sekmesinin hangi "
+            "ülkenin grafiğini okuyacağını belirler -- yani kaynağını bulduğun pazar. "
+            "Dropshipping'de \"hangi ülkeden ürün buluyorum\" sorusunun cevabı burası.\n\n"
+            "ÖNEMLİ: Sadece Japonya (Amazon.co.jp) için hazırlanmış S1-S5 hazır stratejiler ve "
+            "kategori şablonları, başka bir ülke seçince Fiyat aralığı Japon yeni (¥) cinsinden "
+            "olduğu için anlamsız sonuç verir -- bu yüzden başka bir ülke seçtiğinde bu hazır "
+            "stratejiler listeden kaldırılır, sadece aşağıdaki manuel filtreleri (kendi para "
+            "biriminle ayarlayarak) kullanabilirsin.",
+        ).widget.pack(side="left", padx=(6, 0))
+        self.source_market_status_label = ttk.Label(bar, text="", foreground="#666", font=("Segoe UI", 8))
+        self.source_market_status_label.pack(side="left", padx=(10, 0))
+        kf.DOMAIN = JPY_TUNED_SOURCE_DOMAIN
+
+    def _on_source_market_change(self, _event=None):
+        label = self.source_market_display_var.get()
+        domain_str = self._source_market_label_to_id.get(label)
+        if domain_str is None:
+            return
+        self.source_market_domain_var.set(domain_str)
+        kf.DOMAIN = int(domain_str)
+        self._refresh_strategy_options()
+        self._update_price_currency_labels()
+        # Kayit klasorunu de (auto modda) yeni ulkeye gore yeniden hesapla --
+        # _refresh_strategy_options SADECE strateji secimi ARTIK GECERSIZ
+        # olunca klasoru guncelliyordu (orn. JP'den cikinca "Yok"a donunce);
+        # zaten "Yok" secili haldeyken ulke degistirince klasor HIC
+        # guncellenmiyordu -- musteriden geldi.
+        if hasattr(self, "finder_strategy_var"):
+            self._finder_on_strategy_change()
+        if hasattr(self, "rakip_domain_info_label"):
+            self._rakip_update_domain_label()
+
+    def _update_price_currency_labels(self):
+        """Fiyat min/max etiketlerine secili kaynak pazarin para birimini
+        ekler (orn. 'Fiyat min (JPY):') VE kutulara o para biriminde,
+        yaklasik 30-500 USD araligina denk gelen bir varsayilan deger
+        yazar -- musteriden geldi: kutuya "500" yazinca hangi para
+        biriminde oldugu belli degildi, ayrica her pazar icin makul bir
+        varsayilan bant olsun istendi."""
+        if not hasattr(self, "finder_price_min_label"):
+            return
+        domain = int(self.source_market_domain_var.get())
+        currency = KEEPA_DOMAIN_CURRENCY.get(domain, "")
+        suffix = f" ({currency})" if currency else ""
+        self.finder_price_min_label.config(text=f"Fiyat min{suffix}:")
+        self.finder_price_max_label.config(text=f"Fiyat max{suffix}:")
+        self.finder_filter_vars["LISTPRICE_MIN"].set(
+            str(_default_price_for_domain(domain, DEFAULT_PRICE_MIN_USD))
+        )
+        self.finder_filter_vars["LISTPRICE_MAX"].set(
+            str(_default_price_for_domain(domain, DEFAULT_PRICE_MAX_USD))
+        )
+
+    def _refresh_strategy_options(self):
+        """Kaynak pazar Japonya disinda ise, JPY fiyat araligiyla ayarlanmis
+        S1-S5 hazir stratejileri ve kategori-plani girdilerini listeden
+        CIKARIR -- secili haldeyken kaynak degisirse "Yok (manuel filtreler)"
+        secenegine geri doner, boylece yanlislikla yanlis para biriminde
+        arama yapilmaz."""
+        if not hasattr(self, "finder_strategy_var"):
+            return
+        is_jp = self.source_market_domain_var.get() == str(JPY_TUNED_SOURCE_DOMAIN)
+        none_label = "Yok (aşağıdaki manuel/kişisel filtreleri kullan)"
+        if is_jp:
+            values = [none_label] + [kf.STRATEGY_LABELS[key] for key in kf.STRATEGIES]
+            if self._finder_category_label_to_entry:
+                values += sorted(self._finder_category_label_to_entry.keys())
+            self.source_market_status_label.config(text="")
+        else:
+            values = [none_label]
+            self.source_market_status_label.config(
+                text="(Hazır stratejiler sadece Japonya'da kullanılabilir -- manuel filtreleri kendi para biriminde ayarla)"
+            )
+        self.finder_strategy_combo.config(values=values)
+        if self.finder_strategy_var.get() not in values:
+            self.finder_strategy_var.set(none_label)
+            self._finder_on_strategy_change()
+
     # ------------------------------------------------------------ finder tab
     # keepa_finder_gui.py'nin (Sales Rank taramasi ile aday ASIN toplama)
     # ayni mantigi -- artik ayri bir program degil, ilk sekme. Kendi
@@ -421,22 +662,13 @@ class KeepaApp:
         frm.grid(row=0, column=0, sticky="nsew")
         row = 0
 
-        ttk.Label(frm, text="Kayıt Klasörü:").grid(row=row, column=0, sticky="w")
+        # Kayit klasoru artik bu sekmede GORUNMUYOR -- musteriden geldi:
+        # arama kriterleri arasinda "Kayit Klasoru" alani kafa karistiriyordu
+        # (neredeyse hic elle degistirilmiyor, cunku strateji secimine gore
+        # OTOMATIK yonetiliyor). Degistirmek isteyen Ayarlar > ASIN Bul
+        # Kayit Klasoru... menusunu kullanir (bkz. show_finder_output_dir_dialog).
         self.finder_output_dir_var = tk.StringVar(value=str(BASE_DIR))
-        # Kullanici "Klasor Sec..." ile kendi elleriyle bir klasor secene
-        # kadar, klasoru BIZ (strateji secimine gore) otomatik yonetiyoruz --
-        # boylece her strateji kendi klasorune yazar, farkli kriterlerle
-        # bulunmus ASIN'ler/dilim dosyalari yanlislikla ayni klasorde
-        # karismaz (musteriden geldi: strateji secince klasor kendiliginden
-        # degismiyordu).
         self._finder_output_dir_is_auto = True
-        ttk.Entry(frm, textvariable=self.finder_output_dir_var, width=55).grid(
-            row=row, column=1, columnspan=2, sticky="ew", padx=5
-        )
-        ttk.Button(frm, text="Klasör Seç...", command=self.finder_choose_output_dir).grid(
-            row=row, column=3, sticky="w"
-        )
-        row += 1
 
         strategy_frame = ttk.LabelFrame(frm, text="Hazır Strateji (Buy Box / dropshipping odaklı, opsiyonel)")
         strategy_frame.grid(row=row, column=0, columnspan=4, sticky="ew", pady=(0, 3))
@@ -447,12 +679,29 @@ class KeepaApp:
         self._finder_strategy_label_to_key = {
             kf.STRATEGY_LABELS[key]: key for key in kf.STRATEGIES
         }
-        strategy_combo = ttk.Combobox(
+        # Kategori bazli hazir sablonlar (2026-09-14: Japonya kategori agaci +
+        # her kategorinin KENDI highestRank'ine oranli dinamik Sales Rank
+        # bandi) -- keepa_kategori_plani.json'dan yuklenir. Bu dosya
+        # gelistiricinin KENDI Keepa anahtariyla ONCEDEN cikarilmis bir plan
+        # (hangi kategori/bant kombinasyonlarinin "harcamaya deger" oldugu) --
+        # musteri bunu SEÇTIGINDE gercek ASIN cekimi YINE musterinin KENDI
+        # API anahtariyla yapilir (S1-S5 stratejileriyle AYNI model).
+        self._finder_category_label_to_entry = {}
+        category_plan = kf.load_category_plan()
+        if category_plan:
+            for entry in category_plan:
+                label = (
+                    f"[Kategori] {entry['path']} -- bant {entry['band']} "
+                    f"(Sales Rank {entry['sales_gte']}-{entry['sales_lte']}, ~{entry['total_results']} ürün)"
+                )
+                self._finder_category_label_to_entry[label] = entry
+            strategy_values += sorted(self._finder_category_label_to_entry.keys())
+        self.finder_strategy_combo = ttk.Combobox(
             strategy_frame, textvariable=self.finder_strategy_var, values=strategy_values,
             state="readonly", width=48,
         )
-        strategy_combo.grid(row=0, column=0, padx=8, pady=5, sticky="w")
-        strategy_combo.bind("<<ComboboxSelected>>", self._finder_on_strategy_change)
+        self.finder_strategy_combo.grid(row=0, column=0, padx=8, pady=5, sticky="w")
+        self.finder_strategy_combo.bind("<<ComboboxSelected>>", self._finder_on_strategy_change)
         ttk.Button(
             strategy_frame, text="Kişisel Filtre...", command=self.show_personal_filter_dialog
         ).grid(row=0, column=1, padx=(0, 8), pady=5, sticky="w")
@@ -482,27 +731,97 @@ class KeepaApp:
         filters.grid(row=manual_row, column=0, columnspan=4, sticky="ew", pady=(0, 3))
         self.finder_filter_vars = {}
 
-        def add_filter(label_text, attr_name, kf_attr, col, r, width=8):
-            ttk.Label(filters, text=label_text).grid(row=r, column=col, padx=5, pady=3, sticky="w")
-            var = tk.StringVar(value=str(getattr(kf, kf_attr, "")))
+        # "None" (Python'daki bos-deger yazisi) eskiden alanlarda AYNEN
+        # goruniyordu -- Turkce kullanan bir musteri icin anlamsiz/kafa
+        # karistirici (kullanicidan geldi, dogrulandi). Simdi bos deger
+        # gercekten BOS gosteriliyor + her alanin yanina ne ise yaradigini
+        # ve bos birakilirsa ne olacagini anlatan bir "?" balonu eklendi.
+        def add_filter(label_text, attr_name, kf_attr, col, r, width=8, help_text=None):
+            cell = ttk.Frame(filters)
+            cell.grid(row=r, column=col, padx=5, pady=3, sticky="w")
+            label_widget = ttk.Label(cell, text=label_text)
+            label_widget.pack(side="left")
+            if help_text:
+                HelpTooltip(cell, help_text).widget.pack(side="left", padx=(3, 0))
+            raw_value = getattr(kf, kf_attr, None)
+            var = tk.StringVar(value="" if raw_value is None else str(raw_value))
             ttk.Entry(filters, textvariable=var, width=width).grid(row=r, column=col + 1, padx=5, pady=3, sticky="w")
             self.finder_filter_vars[kf_attr] = var
+            return label_widget
 
-        add_filter("Domain (5=co.jp, 1=com):", "domain", "DOMAIN", 0, 0, width=6)
-        add_filter("Fiyat min:", "price_min", "LISTPRICE_MIN", 2, 0)
-        add_filter("Fiyat max:", "price_max", "LISTPRICE_MAX", 4, 0)
-        add_filter("Offer count min:", "offer_min", "OFFER_COUNT_MIN", 0, 1, width=6)
-        add_filter("Offer count max:", "offer_max", "OFFER_COUNT_MAX", 2, 1, width=6)
-        add_filter("Son X gün güncellenmiş:", "recent_days", "RECENT_OFFERS_UPDATE_DAYS", 4, 1, width=6)
-        add_filter("30 günlük SR düşüş min:", "sr_drop_30", "SALES_RANK_DROPS_30_MIN", 0, 2, width=6)
-        add_filter("90 günlük SR düşüş min:", "sr_drop_90", "SALES_RANK_DROPS_90_MIN", 2, 2, width=6)
-        add_filter("Aylık satış (tahmini) min:", "monthly_sold_min", "MONTHLY_SOLD_MIN", 4, 2, width=6)
-        add_filter("Amazon'un kendisi satıyorsa hariç tut:", "no_amazon", "AVAILABILITY_AMAZON_EXCLUDE", 0, 3, width=6)
-        add_filter("Paket ağırlığı max (gram):", "package_weight_max", "PACKAGE_WEIGHT_GRAMS_MAX", 2, 3, width=8)
-        add_filter("Kategori (Root Category ID):", "root_category", "ROOT_CATEGORY", 4, 3, width=10)
+        # ESKIDEN burada ayrica gomulu bir "Domain" sayi kutusu vardi --
+        # kaldirildi, yerini ustteki (notebook'un DISINDA, tum sekmelerden
+        # gorunen) "Kaynak Pazar" seçici aldi (bkz. _build_source_market_bar).
+        # kf.DOMAIN artik ORADAN yonetiliyor, burada AYRICA sormaya gerek yok.
+        # Fiyat etiketlerinin referansini tutuyoruz ki secili pazar
+        # degisince (_update_price_currency_labels) para birimini
+        # etikette gosterebilelim -- musteriden geldi: kutuya "500"
+        # yazinca hangi para biriminde oldugu belli degildi.
+        self.finder_price_min_label = add_filter(
+            "Fiyat min:", "price_min", "LISTPRICE_MIN", 0, 0,
+            help_text="Ürünün liste fiyatı (seçili kaynak pazarın kendi para biriminde) için alt "
+            "sınır. Bunun altındaki ürünler aramaya hiç dahil edilmez. Boş bırakılamaz. "
+            "Varsayılan olarak yaklaşık 30 dolar karşılığı ile doldurulur, dilersen değiştir.",
+        )
+        self.finder_price_max_label = add_filter(
+            "Fiyat max:", "price_max", "LISTPRICE_MAX", 2, 0,
+            help_text="Ürünün liste fiyatı (seçili kaynak pazarın kendi para biriminde) için üst "
+            "sınır. Bunun üstündeki ürünler aramaya hiç dahil edilmez. Boş bırakılamaz. "
+            "Varsayılan olarak yaklaşık 500 dolar karşılığı ile doldurulur, dilersen değiştir.",
+        )
+        self._update_price_currency_labels()
+        add_filter(
+            "Offer count min:", "offer_min", "OFFER_COUNT_MIN", 0, 1, width=6,
+            help_text="Ürünü satan satıcı sayısı için alt sınır (rekabet çok azsa/hiç yoksa "
+            "genelde talep de düşüktür). Boş bırakılamaz.",
+        )
+        add_filter(
+            "Offer count max:", "offer_max", "OFFER_COUNT_MAX", 2, 1, width=6,
+            help_text="Ürünü satan satıcı sayısı için üst sınır (çok fazla satıcı = çok yüksek "
+            "rekabet, kâr marjı düşer). Boş bırakılamaz.",
+        )
+        add_filter(
+            "Son X gün güncellenmiş:", "recent_days", "RECENT_OFFERS_UPDATE_DAYS", 4, 1, width=6,
+            help_text="Ürünün teklif/fiyat bilgisi son kaç gün içinde güncellenmiş olmalı. Eski/"
+            "güncellenmemiş verili ürünleri eler. Boş bırakılamaz, 0 da girilemez -- 0 girersen "
+            "hiçbir sonuç bulunmaz (ürünün tam şu an güncellenmiş olmasını ister). En az 1 kullan.",
+        )
+        add_filter(
+            "30 günlük SR düşüş min:", "sr_drop_30", "SALES_RANK_DROPS_30_MIN", 0, 2, width=6,
+            help_text="Son 30 günde Satış Sıralaması (Sales Rank) en az kaç kez iyileşti/düştü "
+            "-- bu bir satış sinyalidir, yüksek olması daha çok satıldığını gösterir. "
+            "BOŞ BIRAKILIRSA bu filtre hiç uygulanmaz (tüm ürünler kabul edilir).",
+        )
+        add_filter(
+            "90 günlük SR düşüş min:", "sr_drop_90", "SALES_RANK_DROPS_90_MIN", 2, 2, width=6,
+            help_text="Aynı şey ama son 90 gün için. BOŞ BIRAKILIRSA bu filtre hiç uygulanmaz "
+            "(tüm ürünler kabul edilir).",
+        )
+        add_filter(
+            "Aylık satış (tahmini) min:", "monthly_sold_min", "MONTHLY_SOLD_MIN", 4, 2, width=6,
+            help_text="Amazon'un tahmini \"geçen ay X adet satıldı\" verisi için alt sınır. Her "
+            "üründe bu veri yoktur. BOŞ BIRAKILIRSA bu filtre hiç uygulanmaz.",
+        )
+        add_filter(
+            "Amazon'un kendisi satıyorsa hariç tut:", "no_amazon", "AVAILABILITY_AMAZON_EXCLUDE", 0, 3, width=6,
+            help_text="Amazon.co.jp'nin kendisinin sattığı ürünleri elemek için 1 yaz (Amazon ile "
+            "rekabet etmek zordur). BOŞ BIRAKIRSAN bu filtre uygulanmaz, Amazon'un sattığı "
+            "ürünler de listeye girebilir.",
+        )
+        add_filter(
+            "Paket ağırlığı max (gram):", "package_weight_max", "PACKAGE_WEIGHT_GRAMS_MAX", 2, 3, width=8,
+            help_text="Kargo/gönderim maliyetini sınırlamak için paket ağırlığı üst sınırı (gram). "
+            "BOŞ BIRAKILIRSA ağırlık hiç dikkate alınmaz.",
+        )
+        add_filter(
+            "Kategori (Root Category ID):", "root_category", "ROOT_CATEGORY", 4, 3, width=10,
+            help_text="Sadece belirli bir Amazon kategorisinde ara (Keepa'nın kategori kimlik "
+            "numarası). Bilmiyorsan BOŞ BIRAK -- tüm kategoriler taranır.",
+        )
         ttk.Label(
             filters, foreground="#666", font=("Segoe UI", 8), wraplength=760, justify="left",
-            text="Boş bırakılan alanlar Keepa Finder'a hiç gönderilmez (o filtre uygulanmaz).",
+            text="Boş bırakılan alanlar Keepa Finder'a hiç gönderilmez (o filtre uygulanmaz). Her alanın "
+            "yanındaki \"?\" işaretine fare ile gelerek ne işe yaradığını okuyabilirsin.",
         ).grid(row=4, column=0, columnspan=6, sticky="w", padx=5, pady=(2, 4))
         row += 1
 
@@ -523,6 +842,17 @@ class KeepaApp:
             btn_row, text="Bulunan ASIN'leri Temizle Sekmesine Gönder →", command=self.finder_send_to_check
         )
         self.finder_send_button.pack(side="left", padx=(15, 0))
+        clear_cache_button = ttk.Button(
+            btn_row, text="Sıfırla", command=lambda: self._clear_finder_slice_cache()
+        )
+        clear_cache_button.pack(side="left", padx=(15, 0))
+        HelpTooltip(
+            btn_row,
+            "Bu klasördeki 'tamamlandı' Sales Rank dilim işaretlerini siler. Yanlış bir "
+            "filtreyle taranmış (örn. hep 0 sonuç dönmüş) bir aralığı düzelttikten sonra "
+            "yeniden taramak için kullan -- normalde gerekmez, sadece hatalı bir taramayı "
+            "düzeltirken işine yarar.",
+        ).widget.pack(side="left", padx=(3, 0))
         row += 1
 
         status_frame = ttk.LabelFrame(frm, text="Durum")
@@ -564,6 +894,92 @@ class KeepaApp:
             self.finder_output_dir_var.set(chosen)
             self._finder_output_dir_is_auto = False
 
+    def show_finder_output_dir_dialog(self):
+        dialog = tk.Toplevel(self.root)
+        dialog.title("ASIN Bul - Kayıt Klasörü")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        ttk.Label(
+            dialog,
+            text=(
+                "ASIN Bul sonuçları normalde her strateji/kategori/kaynak "
+                "pazar için kendi klasörüne otomatik kaydedilir -- farklı "
+                "ülkelerin/taramaların dosyaları birbirine karışmasın diye. "
+                "Sadece kendi seçtiğin sabit bir klasöre kaydetmek istersen "
+                "aşağıdan değiştir."
+            ),
+            wraplength=440, justify="left",
+        ).pack(padx=20, pady=(15, 10))
+
+        path_label = ttk.Label(dialog, text="", wraplength=440, justify="left", foreground="#333")
+        path_label.pack(padx=20, pady=(0, 10))
+
+        def refresh_path_label():
+            mode = "otomatik" if self._finder_output_dir_is_auto else "elle seçilmiş"
+            path_label.config(text=f"Şu anki klasör ({mode}):\n{self.finder_output_dir_var.get()}")
+
+        refresh_path_label()
+
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(padx=20, pady=(0, 15))
+
+        def do_choose():
+            self.finder_choose_output_dir()
+            refresh_path_label()
+
+        def do_reset_auto():
+            self._finder_output_dir_is_auto = True
+            self._finder_on_strategy_change()
+            refresh_path_label()
+
+        ttk.Button(btn_frame, text="Klasör Seç...", command=do_choose).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Otomatik Yönetime Dön", command=do_reset_auto).pack(side="left", padx=5)
+        ttk.Button(
+            btn_frame, text="Bu Klasördeki Taramayı Sıfırla",
+            command=lambda: self._clear_finder_slice_cache(parent=dialog),
+        ).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Kapat", command=dialog.destroy).pack(side="left", padx=5)
+
+    def _clear_finder_slice_cache(self, parent=None):
+        """Her Sales Rank dilimi kendi "sales_BBBBB-EEEEE.txt" dosyasina
+        yazilir -- hem "bu dilim taranmis" isareti HEM de o dilimde bulunan
+        ASIN'lerin kendisi bu dosyada. Bir filtre hatasi (orn. "Son X gun
+        guncellenmis" 0 iken hep 0 sonuc donmesi) yuzunden yanlislikla "0
+        ASIN bulundu" olarak isaretlenmis bir dilim, duzeltmeden SONRA bile
+        "zaten tarandi" diye atlaniyordu -- musteriden geldi. Bu dosyalari
+        silmek dilimi GERCEKTEN sifirlar, bir sonraki taramada yeniden
+        (dogru filtrelerle) sorgulanir. tum_asinler.txt / *_temiz.txt gibi
+        BIRLESTIRILMIS cikti dosyalarina dokunulmaz (onlar ayrica, "Gonder"
+        ile yeniden olusturulur). Hem Ayarlar penceresinden hem de ana
+        sekmedeki "Sıfırla" butonundan cagrilir (musteriden geldi: sik
+        kullaniyor, ana sekmede olsun istedi)."""
+        parent = parent or self.root
+        folder = Path(self.finder_output_dir_var.get())
+        markers = list(folder.glob("sales_*-*.txt")) if folder.exists() else []
+        if not markers:
+            messagebox.showinfo(
+                "Önbellek yok", "Bu klasörde temizlenecek 'tamamlandı' işareti bulunamadı.",
+                parent=parent,
+            )
+            return
+        if not messagebox.askyesno(
+            "Emin misin?",
+            f"{len(markers)} adet Sales Rank dilimi için 'tamamlandı' işareti silinecek. "
+            "Bir sonraki taramada bu dilimler BAŞTAN (yeni filtrelerle) yeniden sorgulanır "
+            "-- token tekrar harcanır. Bunu genelde önceki bir taramada YANLIŞ bir filtre "
+            "kullanıldığını fark edip düzelttikten sonra yaparsın.\n\nDevam edilsin mi?",
+            parent=parent,
+        ):
+            return
+        for marker in markers:
+            marker.unlink()
+        messagebox.showinfo(
+            "Temizlendi", f"{len(markers)} dilim işareti silindi. Bir sonraki taramada baştan taranacak.",
+            parent=parent,
+        )
+
     def finder_log(self, message):
         self.finder_log_text.configure(state="normal")
         self.finder_log_text.insert("end", message + "\n")
@@ -579,8 +995,10 @@ class KeepaApp:
         yapmadigi surece -- secilen stratejiye ozel bir alt klasore
         otomatik tasir. Boylece farkli stratejilerin/kriterlerin dilim
         dosyalari yanlislikla ayni klasorde karismaz."""
-        strategy_key = self._finder_strategy_label_to_key.get(self.finder_strategy_var.get())
-        if strategy_key is not None:
+        label = self.finder_strategy_var.get()
+        strategy_key = self._finder_strategy_label_to_key.get(label)
+        category_entry = self._finder_category_label_to_entry.get(label)
+        if strategy_key is not None or category_entry is not None:
             self.finder_manual_frame.grid_remove()
         else:
             self.finder_manual_frame.grid()
@@ -588,8 +1006,21 @@ class KeepaApp:
         if self._finder_output_dir_is_auto:
             if strategy_key is not None:
                 self.finder_output_dir_var.set(str(BASE_DIR / f"keepa_arama_{strategy_key}"))
+            elif category_entry is not None:
+                self.finder_output_dir_var.set(
+                    str(BASE_DIR / f"keepa_arama_kategori_{category_entry['catId']}_{category_entry['band']}")
+                )
             else:
-                self.finder_output_dir_var.set(str(BASE_DIR))
+                # Manuel filtre modu HER ulkede kullanilabilir (strateji/
+                # kategori modlarinin aksine, sadece JP'ye ozel degil) --
+                # klasoru kaynak pazara gore de ayirmazsak, orn. Avustralya'da
+                # taranmis bir Sales Rank dilimi, Hollanda'da AYNI dilimi
+                # tekrar taramaya calisinca "zaten tarandi" diye yanlislikla
+                # atlanir (musteriden geldi: ulke degistirince log/sonuc
+                # degismiyordu -- sebebi buydu, tum ulkeler ayni klasoru
+                # paylasiyordu).
+                domain = int(self.source_market_domain_var.get())
+                self.finder_output_dir_var.set(str(BASE_DIR / f"keepa_arama_manuel_domain_{domain}"))
 
         # ONEMLI: burada artik pencereyi kucultmuyoruz (eskiden geometry("")
         # ile o an gorunen icerige gore kuculuyordu). Pencere boyutu acilista
@@ -656,7 +1087,7 @@ class KeepaApp:
     # Bunlar sorgunun HER ZAMAN icerdigi temel filtreler -- bos birakilamaz
     # (digerlerinin aksine, build_selection bunlari kosulsuz kullanir).
     FINDER_REQUIRED_FILTERS = {
-        "DOMAIN", "LISTPRICE_MIN", "LISTPRICE_MAX",
+        "LISTPRICE_MIN", "LISTPRICE_MAX",
         "OFFER_COUNT_MIN", "OFFER_COUNT_MAX", "RECENT_OFFERS_UPDATE_DAYS",
     }
 
@@ -673,9 +1104,22 @@ class KeepaApp:
                 setattr(kf, kf_attr, None)
                 continue
             try:
-                setattr(kf, kf_attr, int(raw))
+                value = int(raw)
             except ValueError:
                 raise ValueError(f"'{raw}' sayı değil (alan: {kf_attr})")
+            # "Son X gun guncellenmis" alaninda 0 (veya negatif), Keepa'ya
+            # "teklif TAM SU AN (gecmis degil, gelecek an) guncellenmis
+            # olmali" diye gidiyor -- hicbir gecmis urun bunu karsilayamaz,
+            # sonuc HER ZAMAN sifir cikar (herhangi bir ulke/pazarda,
+            # bununla alakasi yok). Musteriden geldi: AU'da 0 ASIN
+            # bulununca sanki ulkeyle ilgili bir sorun var sanildi.
+            if kf_attr == "RECENT_OFFERS_UPDATE_DAYS" and value <= 0:
+                raise ValueError(
+                    "'Son X gün güncellenmiş' alanı 0 veya negatif olamaz -- "
+                    "bu durumda Keepa hiçbir zaman sonuç döndürmez (ürünün tam "
+                    "şu an güncellenmiş olmasını ister). En az 1 gir."
+                )
+            setattr(kf, kf_attr, value)
 
     def finder_start(self):
         if self.finder_running:
@@ -695,13 +1139,19 @@ class KeepaApp:
 
         strategy_label = self.finder_strategy_var.get()
         strategy_key = self._finder_strategy_label_to_key.get(strategy_label)
+        category_entry = self._finder_category_label_to_entry.get(strategy_label)
 
-        step = 0  # strateji modunda kullanilmiyor, sadece manuel modda gercek deger alir
+        step = 0  # strateji/kategori modunda kullanilmiyor, sadece manuel modda gercek deger alir
         if strategy_key is not None:
             # Hazir strateji modu: manuel Sales Rank/filtre alanlari YOK
             # SAYILIR -- strateji kendi bandini/kriterlerini tasir.
             strategy = kf.STRATEGIES[strategy_key]
             start, end = strategy["sales_gte"], strategy["sales_lte"]
+            using_personal_filter = False
+        elif category_entry is not None:
+            # Kategori sablonu modu: kategori + bant KENDI Sales Rank
+            # araligini tasir, manuel alanlar yok sayilir.
+            start, end = category_entry["sales_gte"], category_entry["sales_lte"]
             using_personal_filter = False
         else:
             try:
@@ -755,14 +1205,27 @@ class KeepaApp:
         self.finder_log_text.configure(state="disabled")
         if strategy_key is not None:
             self.finder_log(f">>> Hazır strateji kullanılıyor: {strategy_label} (Sales Rank {start}-{end}).")
+        elif category_entry is not None:
+            self.finder_log(f">>> Kategori şablonu kullanılıyor: {strategy_label}")
         elif using_personal_filter:
             self.finder_log(">>> Kişisel Keepa filtresi kullanılıyor (yukarıdaki hazır alanlar yok sayıldı).")
 
         self.finder_current_output_dir = output_dir
-        self.finder_current_shared_pool_path = output_dir.resolve().parent / "ortak_asin_havuzu.txt"
+        # ONEMLI (2026-09-14, canli dogrulandi): output_dir strateji/kategori
+        # modunda BASE_DIR'in DOGRUDAN altinda ("keepa_arama_S1_..." gibi),
+        # keepa_sync/'in ICINDE DEGIL -- eski "output_dir'in kardesi" formulu
+        # bu yuzden YANLIS konuma (BASE_DIR/ortak_asin_havuzu.txt) yazardi --
+        # bu HATA fetch_strategy_asins/fetch_category_plan_asins icinde 2 KERE
+        # canli yasanip duzeltildi (bkz. keepa_finder.py notlari), GUI'nin
+        # kendisi de AYNI hataya sahipti, burada da duzeltiliyor.
+        keepa_sync_pool = BASE_DIR / "keepa_sync" / "ortak_asin_havuzu.txt"
+        if keepa_sync_pool.parent.exists():
+            self.finder_current_shared_pool_path = keepa_sync_pool
+        else:
+            self.finder_current_shared_pool_path = output_dir.resolve().parent / "ortak_asin_havuzu.txt"
         thread = threading.Thread(
             target=self._finder_run,
-            args=(output_dir, start, end, step, api_key, strategy_key),
+            args=(output_dir, start, end, step, api_key, strategy_key, category_entry),
             daemon=True,
         )
         thread.start()
@@ -817,7 +1280,7 @@ class KeepaApp:
         self.finder_stop_button.config(state="disabled")
         self.finder_log(">>> Durdurma istendi -- şu an beklenen bir aralık varsa bitince güvenli şekilde duracak.")
 
-    def _finder_run(self, output_dir, start, end, step, api_key, strategy_key=None):
+    def _finder_run(self, output_dir, start, end, step, api_key, strategy_key=None, category_entry=None):
         def progress_callback(kind, payload):
             self.finder_event_queue.put((kind, payload))
 
@@ -825,6 +1288,13 @@ class KeepaApp:
             if strategy_key is not None:
                 kf.fetch_strategy_asins(
                     strategy_key, output_dir,
+                    progress=progress_callback, stop_event=self.finder_stop_event,
+                    shared_pool_path=self.finder_current_shared_pool_path,
+                    api_key=api_key,
+                )
+            elif category_entry is not None:
+                kf.fetch_category_plan_asins(
+                    category_entry, output_dir,
                     progress=progress_callback, stop_event=self.finder_stop_event,
                     shared_pool_path=self.finder_current_shared_pool_path,
                     api_key=api_key,
@@ -895,6 +1365,419 @@ class KeepaApp:
             pass
         self.root.after(150, self._poll_finder)
 
+    # -------------------------------------------------------------- rakip tab
+    def _build_rakip_tab(self, parent):
+        """Bilinen Turk rakip saticilarin Keepa storefront'unu (TUM aktif
+        ASIN listesi) cekip ortak havuza ekler -- harvest_seller_asins.py'nin
+        AYNI mantigi, GUI icinden calistirilabilir + satici listesi burada
+        elle yonetilebilir (kod degistirmeye/exe yeniden derlemeye gerek yok).
+        Finder sekmesiyle AYNI thread+queue+poll kalibini kullanir."""
+        self.rakip_event_queue = queue.Queue()
+        self.rakip_running = False
+        self.rakip_stop_event = None
+
+        # Bu sekme digerlerinden daha uzun olabiliyor (satici tablosu +
+        # ekleme formu + kesif ayarlari + log). Pencere yuksekligi ekrana
+        # gore SABIT (bkz. _fit_to_widest_tab, resizable(False,False)) --
+        # icerik tasinca alt kisim (butonlar/log) hic GORUNMUYORDU (canli
+        # dogrulandi, 2026-09-20). Bu yuzden SADECE bu sekmeye dikey
+        # kaydirma ekliyoruz -- digerlerine dokunulmadi.
+        parent.rowconfigure(0, weight=1)
+        parent.columnconfigure(0, weight=1)
+        canvas = tk.Canvas(parent, highlightthickness=0)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        frm = ttk.Frame(canvas, padding=7)
+        frm_window = canvas.create_window((0, 0), window=frm, anchor="nw")
+
+        def _on_frm_configure(_event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _on_canvas_configure(event):
+            canvas.itemconfig(frm_window, width=event.width)
+
+        frm.bind("<Configure>", _on_frm_configure)
+        canvas.bind("<Configure>", _on_canvas_configure)
+
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        canvas.bind("<Enter>", lambda _e: canvas.bind_all("<MouseWheel>", _on_mousewheel))
+        canvas.bind("<Leave>", lambda _e: canvas.unbind_all("<MouseWheel>"))
+
+        row = 0
+
+        ttk.Label(
+            frm,
+            text=(
+                "Bilinen rakip satıcıların Keepa'daki TÜM aktif ASIN listesini (storefront) çeker "
+                "ve ortak havuza ekler -- bir rakip zaten satıyorsa, o ürünün gerçekten satılabilir "
+                "olduğunun güçlü bir kanıtıdır."
+            ),
+            wraplength=780, justify="left", foreground="#444",
+        ).grid(row=row, column=0, columnspan=4, sticky="w", pady=(0, 5))
+        row += 1
+
+        list_frame = ttk.LabelFrame(frm, text="Satıcı Listesi")
+        list_frame.grid(row=row, column=0, columnspan=4, sticky="nsew", pady=(0, 5))
+        frm.rowconfigure(row, weight=1)
+        row += 1
+
+        columns = ("isim", "seller_id", "domain", "durum")
+        self.rakip_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=8)
+        self.rakip_tree.heading("isim", text="İsim")
+        self.rakip_tree.heading("seller_id", text="Seller ID")
+        self.rakip_tree.heading("domain", text="Domain")
+        self.rakip_tree.heading("durum", text="Durum")
+        self.rakip_tree.column("isim", width=180)
+        self.rakip_tree.column("seller_id", width=140)
+        self.rakip_tree.column("domain", width=60, anchor="center")
+        self.rakip_tree.column("durum", width=100, anchor="center")
+        self.rakip_tree.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        list_frame.columnconfigure(0, weight=1)
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.rakip_tree.yview)
+        self.rakip_tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.grid(row=0, column=1, sticky="ns", pady=5)
+
+        tree_btn_row = ttk.Frame(list_frame)
+        tree_btn_row.grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=(0, 5))
+        ttk.Button(tree_btn_row, text="Seçiliyi Sil", command=self._rakip_remove_selected).pack(side="left")
+        ttk.Button(tree_btn_row, text="Yenile", command=self._rakip_refresh_tree).pack(side="left", padx=(6, 0))
+
+        # 2026-09-20 GUNCELLEME (musteriden geldi): eskiden tum alanlar tek
+        # satira sikistirilmisti -- hem anlam karmasasi hem yatay tasma
+        # vardi. Artik HER alan kendi satirinda, kisa etiketle -- detay
+        # aciklamalar '?' ipucuna tasindi, pencere asla yatayda tasmiyor.
+        LABEL_WIDTH = 20
+
+        add_frame = ttk.LabelFrame(frm, text="Yeni Rakip Satıcı Ekle")
+        add_frame.grid(row=row, column=0, columnspan=4, sticky="ew", pady=(0, 5))
+        row += 1
+
+        # 2026-09-20: "Isim" alani kaldirildi (musteriden geldi) -- artik
+        # elle yazilmiyor, Ekle'ye basinca Keepa'dan (businessName/
+        # sellerName) OTOMATIK cekiliyor (bkz. hs.fetch_seller_name).
+        # 2026-09-20: Domain ayri bir satir DEGIL -- sadece bilgi amacli
+        # (ust bardaki "Kaynak Pazar" secicisinden geliyor, burada elle
+        # girilmiyor), Seller ID ile AYNI satirda gosteriliyor (musteriden
+        # geldi -- kendi satirini hak edecek kadar onemli/etkilesimli degil).
+        ttk.Label(add_frame, text="Seller ID:", width=LABEL_WIDTH, anchor="w").grid(
+            row=0, column=0, padx=5, pady=(5, 6), sticky="w"
+        )
+        self.rakip_new_seller_id_var = tk.StringVar()
+        seller_id_row = ttk.Frame(add_frame)
+        seller_id_row.grid(row=0, column=1, padx=5, pady=(5, 6), sticky="w")
+        ttk.Entry(seller_id_row, textvariable=self.rakip_new_seller_id_var, width=18).pack(side="left")
+        self.rakip_domain_info_label = ttk.Label(seller_id_row, text="", foreground="#555")
+        self.rakip_domain_info_label.pack(side="left", padx=(10, 0))
+        HelpTooltip(
+            seller_id_row,
+            "Seller ID'yi bulmak için: Amazon ürün sayfasında 'Other sellers on Amazon' / "
+            "'Satan ve Gönderen' -> satıcının adına tıkla -> storefront sayfasında adres ülkesi "
+            "TR ise Türk satıcıdır. Adres çubuğundaki '?seller=XXXXXXXXXXX' kısmı Seller ID'dir. "
+            "İsim otomatik Keepa'dan çekilir, elle girmene gerek yok. Domain, sayfanın en "
+            "üstündeki 'Kaynak Pazar' seçiciden gelir -- o pazarı değiştirirsen burası da "
+            "otomatik güncellenir.",
+        ).widget.pack(side="left", padx=(6, 0))
+
+        ttk.Button(add_frame, text="Ekle", command=self._rakip_add_seller).grid(
+            row=1, column=1, padx=5, pady=(0, 6), sticky="w"
+        )
+
+        discover_frame = ttk.LabelFrame(frm, text="Otomatik Rakip Keşfi (satıcı sayısına göre)")
+        discover_frame.grid(row=row, column=0, columnspan=4, sticky="ew", pady=(0, 5))
+        row += 1
+
+        ttk.Label(discover_frame, text="Satıcı sayısı:", width=LABEL_WIDTH, anchor="w").grid(
+            row=0, column=0, padx=5, pady=(5, 2), sticky="w"
+        )
+        range_row = ttk.Frame(discover_frame)
+        range_row.grid(row=0, column=1, padx=5, pady=(5, 2), sticky="w")
+        self.rakip_offer_min_var = tk.StringVar(value=str(hs.DISCOVERY_OFFER_COUNT_MIN))
+        ttk.Entry(range_row, textvariable=self.rakip_offer_min_var, width=6).pack(side="left")
+        ttk.Label(range_row, text=" - ").pack(side="left")
+        self.rakip_offer_max_var = tk.StringVar(value=str(hs.DISCOVERY_OFFER_COUNT_MAX))
+        ttk.Entry(range_row, textvariable=self.rakip_offer_max_var, width=6).pack(side="left")
+        HelpTooltip(
+            range_row,
+            "'İşlenmemiş Satıcıları Çek' önce bu satıcı-sayısı aralığındaki ürünleri bulur -- ne çok "
+            "rekabetsiz (talep şüphesi), ne çok kalabalık.",
+        ).widget.pack(side="left", padx=(6, 0))
+
+        ttk.Label(discover_frame, text="Hedef ülke kodu:", width=LABEL_WIDTH, anchor="w").grid(
+            row=1, column=0, padx=5, pady=2, sticky="w"
+        )
+        country_row = ttk.Frame(discover_frame)
+        country_row.grid(row=1, column=1, padx=5, pady=2, sticky="w")
+        self.rakip_target_country_var = tk.StringVar(value=hs.DISCOVERY_TARGET_COUNTRY)
+        ttk.Entry(country_row, textvariable=self.rakip_target_country_var, width=5).pack(side="left")
+        HelpTooltip(
+            country_row,
+            "Bu ASIN'lerin GERÇEK canlı satıcılarına bakıp adres ülkesi bu kodla eşleşenleri YENİ "
+            "rakip olarak listeye ekler -- bilinen bir satıcı listesine ihtiyaç duymadan kendi "
+            "rakiplerini sıfırdan bulur.",
+        ).widget.pack(side="left", padx=(6, 0))
+
+        ttk.Label(discover_frame, text="Max yeni satıcı:", width=LABEL_WIDTH, anchor="w").grid(
+            row=2, column=0, padx=5, pady=2, sticky="w"
+        )
+        max_sellers_row = ttk.Frame(discover_frame)
+        max_sellers_row.grid(row=2, column=1, padx=5, pady=2, sticky="w")
+        self.rakip_max_new_sellers_var = tk.StringVar(value="")
+        ttk.Entry(max_sellers_row, textvariable=self.rakip_max_new_sellers_var, width=6).pack(side="left")
+        ttk.Label(max_sellers_row, text="  (boş = sınırsız)", foreground="#888").pack(side="left")
+
+        ttk.Label(discover_frame, text="ASIN/satıcı limiti:", width=LABEL_WIDTH, anchor="w").grid(
+            row=3, column=0, padx=5, pady=(2, 5), sticky="w"
+        )
+        per_seller_row = ttk.Frame(discover_frame)
+        per_seller_row.grid(row=3, column=1, padx=5, pady=(2, 5), sticky="w")
+        self.rakip_per_seller_limit_var = tk.StringVar(value="")
+        ttk.Entry(per_seller_row, textvariable=self.rakip_per_seller_limit_var, width=6).pack(side="left")
+        ttk.Label(per_seller_row, text="  (boş = sınırsız)", foreground="#888").pack(side="left")
+        HelpTooltip(
+            per_seller_row,
+            "İkisi de BOŞ bırakılırsa sınırsız (eski davranış). 'Max yeni satıcı': bir keşif turunda "
+            "en fazla bu kadar yeni rakip eklenir (örn. 5). 'ASIN/satıcı limiti': bir satıcının TÜM "
+            "listesi yerine (Sales Rank'e göre) en çok satan ilk N ASIN'i alınır -- bu, storefront "
+            "listesini sıralamak için EK token harcar (~1 token/ASIN), ama havuza baştan zayıf ASIN "
+            "doldurmaz.",
+        ).widget.pack(side="left", padx=(6, 0))
+
+        btn_row = ttk.Frame(frm)
+        btn_row.grid(row=row, column=0, columnspan=4, sticky="w", pady=(0, 5))
+        row += 1
+        self.rakip_start_button = ttk.Button(btn_row, text="İşlenmemiş Satıcıları Çek", command=self.rakip_start)
+        self.rakip_start_button.pack(side="left")
+        self.rakip_stop_button = ttk.Button(btn_row, text="Durdur", command=self.rakip_stop, state="disabled")
+        self.rakip_stop_button.pack(side="left", padx=(6, 0))
+
+        status_frame = ttk.LabelFrame(frm, text="Durum")
+        status_frame.grid(row=row, column=0, columnspan=4, sticky="ew", pady=(0, 3))
+        row += 1
+        self.rakip_status_label = ttk.Label(status_frame, text="Hazır.", font=("Segoe UI", 10, "bold"))
+        self.rakip_status_label.grid(row=0, column=0, sticky="w", padx=8, pady=3, columnspan=3)
+        self.rakip_progress = ttk.Progressbar(status_frame, length=400, mode="determinate")
+        self.rakip_progress.grid(row=1, column=0, columnspan=3, sticky="ew", padx=8, pady=(0, 3))
+
+        ttk.Label(frm, text="Log:").grid(row=row, column=0, sticky="w")
+        row += 1
+        self.rakip_log_text = scrolledtext.ScrolledText(frm, height=5, width=95, state="disabled")
+        self.rakip_log_text.grid(row=row, column=0, columnspan=4, pady=(0, 3))
+        row += 1
+
+        self._rakip_refresh_tree()
+        self._rakip_update_domain_label()
+        self.root.after(150, self._poll_rakip)
+
+    def _rakip_update_domain_label(self):
+        domain_str = self.source_market_domain_var.get()
+        id_to_label = {str(dom): label for label, dom in KEEPA_MARKET_DOMAINS}
+        label = id_to_label.get(domain_str, domain_str)
+        self.rakip_domain_info_label.config(text=f"Domain: {domain_str} ({label}, Kaynak Pazar'dan)")
+
+    def _rakip_refresh_tree(self):
+        for item in self.rakip_tree.get_children():
+            self.rakip_tree.delete(item)
+        sellers = hs.load_sellers()
+        already = hs.load_already_processed()
+        for s in sellers:
+            durum = "İşlendi" if s["seller_id"] in already else "Bekliyor"
+            self.rakip_tree.insert("", "end", iid=s["seller_id"], values=(s["name"], s["seller_id"], s["domain"], durum))
+        bekleyen = sum(1 for s in sellers if s["seller_id"] not in already)
+        self.rakip_status_label.config(
+            text=f"Toplam {len(sellers)} satıcı -- {len(sellers) - bekleyen} işlendi, {bekleyen} bekliyor."
+        )
+
+    def _rakip_add_seller(self):
+        seller_id = self.rakip_new_seller_id_var.get().strip()
+        if not seller_id:
+            messagebox.showwarning("Eksik bilgi", "Seller ID boş bırakılamaz.")
+            return
+        api_key = keepa_api_settings.load_api_key()
+        if not api_key:
+            messagebox.showwarning(
+                "Keepa API anahtarı eksik",
+                "Satıcı eklemek için önce Ayarlar > Keepa API Ayarları... menüsünden kendi Keepa API anahtarını gir.",
+            )
+            return
+        domain = int(self.source_market_domain_var.get())
+        self.root.config(cursor="watch")
+        self.root.update_idletasks()
+        try:
+            name = hs.fetch_seller_name(api_key, seller_id, domain)
+        except Exception as error:
+            messagebox.showerror("Hata", f"Satıcı ismi Keepa'dan alınamadı: {error}")
+            return
+        finally:
+            self.root.config(cursor="")
+        if not name:
+            messagebox.showwarning(
+                "Satıcı bulunamadı",
+                f"Keepa'da '{seller_id}' ID'li bir satıcı bulunamadı -- ID'yi ve seçili Kaynak "
+                "Pazar'ı kontrol et.",
+            )
+            return
+        _sellers, added = hs.add_seller(name, seller_id, domain)
+        if not added:
+            messagebox.showinfo("Zaten var", f"Bu Seller ID ({seller_id}) listede zaten kayıtlı.")
+            return
+        self.rakip_new_seller_id_var.set("")
+        self._rakip_refresh_tree()
+
+    def _rakip_remove_selected(self):
+        selected = self.rakip_tree.selection()
+        if not selected:
+            return
+        seller_id = selected[0]
+        if not messagebox.askyesno("Satıcıyı sil", f"'{seller_id}' listeden silinsin mi?"):
+            return
+        hs.remove_seller(seller_id)
+        self._rakip_refresh_tree()
+
+    def rakip_log(self, message):
+        self.rakip_log_text.configure(state="normal")
+        self.rakip_log_text.insert("end", message + "\n")
+        self.rakip_log_text.see("end")
+        self.rakip_log_text.configure(state="disabled")
+
+    def rakip_start(self):
+        if self.rakip_running:
+            return
+        api_key = keepa_api_settings.load_api_key()
+        if not api_key:
+            messagebox.showwarning(
+                "Keepa API anahtarı eksik",
+                "Rakip Kopyala için önce Ayarlar > Keepa API Ayarları... menüsünden kendi Keepa API anahtarını gir.",
+            )
+            return
+        try:
+            offer_min = int(self.rakip_offer_min_var.get())
+            offer_max = int(self.rakip_offer_max_var.get())
+        except (ValueError, tk.TclError):
+            messagebox.showwarning("Geçersiz değer", "Satıcı sayısı min/max alanları sayı olmalı.")
+            return
+        if offer_min <= 0 or offer_max < offer_min:
+            messagebox.showwarning("Geçersiz aralık", "Satıcı sayısı max, min'den küçük olamaz.")
+            return
+        target_country = self.rakip_target_country_var.get().strip().upper()
+        if len(target_country) != 2:
+            messagebox.showwarning("Geçersiz ülke kodu", "Hedef ülke kodu 2 harfli olmalı (örn. TR).")
+            return
+        domain = int(self.source_market_domain_var.get())
+
+        def parse_optional_int(var, field_label):
+            raw = var.get().strip()
+            if not raw:
+                return None, True
+            try:
+                value = int(raw)
+            except ValueError:
+                messagebox.showwarning("Geçersiz değer", f"{field_label} boş ya da sayı olmalı.")
+                return None, False
+            if value <= 0:
+                messagebox.showwarning("Geçersiz değer", f"{field_label} pozitif bir sayı olmalı.")
+                return None, False
+            return value, True
+
+        max_new_sellers, ok1 = parse_optional_int(self.rakip_max_new_sellers_var, "Max yeni satıcı")
+        if not ok1:
+            return
+        per_seller_limit, ok2 = parse_optional_int(self.rakip_per_seller_limit_var, "Satıcı başına ASIN limiti")
+        if not ok2:
+            return
+
+        self.rakip_running = True
+        self.rakip_stop_event = threading.Event()
+        self.rakip_start_button.config(state="disabled")
+        self.rakip_stop_button.config(state="normal")
+        self.rakip_log_text.configure(state="normal")
+        self.rakip_log_text.delete("1.0", "end")
+        self.rakip_log_text.configure(state="disabled")
+
+        keepa_sync_pool = BASE_DIR / "keepa_sync" / "ortak_asin_havuzu.txt"
+        shared_pool_path = keepa_sync_pool if keepa_sync_pool.parent.exists() else None
+
+        thread = threading.Thread(
+            target=self._rakip_run,
+            args=(
+                api_key, shared_pool_path, offer_min, offer_max, target_country, domain,
+                max_new_sellers, per_seller_limit,
+            ),
+            daemon=True,
+        )
+        thread.start()
+
+    def _rakip_run(
+        self, api_key, shared_pool_path, offer_min, offer_max, target_country, domain,
+        max_new_sellers, per_seller_limit,
+    ):
+        def progress_callback(kind, payload):
+            self.rakip_event_queue.put((kind, payload))
+
+        try:
+            hs.run_discovery_and_harvest(
+                api_key, offer_count_min=offer_min, offer_count_max=offer_max,
+                target_country=target_country, domain=domain,
+                max_new_sellers=max_new_sellers, per_seller_asin_limit=per_seller_limit,
+                progress=progress_callback, stop_event=self.rakip_stop_event,
+                shared_pool_path=shared_pool_path,
+            )
+        except Exception as error:
+            self.rakip_event_queue.put(("fatal", {"message": f"{type(error).__name__}: {error}"}))
+        self.rakip_event_queue.put(("done", {}))
+
+    def rakip_stop(self):
+        if not self.rakip_running or self.rakip_stop_event is None:
+            return
+        self.rakip_stop_event.set()
+        self.rakip_stop_button.config(state="disabled")
+        self.rakip_log(">>> Durdurma istendi -- şu an işlenen satıcı bitince güvenli şekilde duracak.")
+
+    def _poll_rakip(self):
+        try:
+            while True:
+                kind, payload = self.rakip_event_queue.get_nowait()
+                message = payload.get("message", "")
+                if kind in ("log", "start"):
+                    if message:
+                        self.rakip_log(message)
+                        # Durum etiketi SADECE isin sonunda/aralarinda degil,
+                        # HER ADIMDA guncellensin (musteriden geldi -- "ne
+                        # islem yapiliyorsa" gorulsun): tek satirlik ozet.
+                        self.rakip_status_label.config(text=message.strip().lstrip(">").strip())
+                    if kind == "start":
+                        total = payload.get("total") or 0
+                        self.rakip_progress.config(maximum=max(1, total), value=0)
+                elif kind == "seller_done":
+                    islenen = payload.get("islenen", 0)
+                    total = payload.get("total", 0)
+                    self.rakip_progress.config(value=islenen)
+                    self.rakip_status_label.config(
+                        text=f"{islenen}/{total} satıcı işlendi -- ortak havuz: {payload.get('toplam_havuz')} "
+                             f"ASIN (bu oturumda +{payload.get('yeni_asin_toplam')})"
+                    )
+                elif kind == "discover_complete":
+                    self.rakip_log(message)
+                    self.rakip_status_label.config(text=message.strip().lstrip(">").strip())
+                    self._rakip_refresh_tree()
+                elif kind in ("complete", "stopped"):
+                    self.rakip_log(f">>> {message}")
+                    self._rakip_refresh_tree()
+                elif kind == "fatal":
+                    messagebox.showerror("Hata", message)
+                elif kind == "done":
+                    self.rakip_running = False
+                    self.rakip_start_button.config(state="normal")
+                    self.rakip_stop_button.config(state="disabled")
+                    self.rakip_log(">>> Durdu / tamamlandı.")
+        except queue.Empty:
+            pass
+        self.root.after(150, self._poll_rakip)
+
     # -------------------------------------------------------------- send tab
     def _build_send_tab(self, parent):
         frm = ttk.Frame(parent, padding=7)
@@ -935,6 +1818,39 @@ class KeepaApp:
 
         self.send_count_label = ttk.Label(frm, text="0 ASIN")
         self.send_count_label.grid(row=row, column=0, sticky="w")
+        row += 1
+
+        sku_row = ttk.Frame(frm)
+        sku_row.grid(row=row, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        ttk.Label(sku_row, text="Stok Kodu (JP-):").pack(side="left")
+        self.send_sku_code_var = tk.StringVar(value="")
+        ttk.Entry(sku_row, textvariable=self.send_sku_code_var, width=10).pack(side="left", padx=(4, 0))
+        HelpTooltip(
+            sku_row,
+            "EasyCentral'daki 'Stok Kodu' alanına yazılır (ör. S1HOT, KATEG, 00003). "
+            "Bu partinin hangi arama yönteminden geldiğini SKU üzerinden işaretlemek için "
+            "kullanılır -- ileride hangi SKU'nun daha çok sattığına bakıp aynı yöntemi tekrar "
+            "kullanabilirsin. Boş bırakılırsa EasyCentral kendi rastgele kodunu kullanır.",
+        ).widget.pack(side="left", padx=(4, 0))
+        row += 1
+
+        self.send_auto_upload_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            frm,
+            text="Taramada uygun çıkanları mağazaya otomatik yükle (Önerilmez)",
+            variable=self.send_auto_upload_var,
+        ).grid(row=row, column=0, columnspan=3, sticky="w", pady=(2, 0))
+        row += 1
+        ttk.Label(
+            frm,
+            text=(
+                "Bu işaretlenirse, tarama bitince UYGUN çıkan ürünler SENIN gözden geçirmen "
+                "beklenmeden doğrudan Amazon mağazana gönderilir (EasyCentral'ın kendi \"Amazon "
+                "Mağazama Otomatik Yükle\" seçeneği) -- geri alınamaz. İşaretlemezsen tarama sadece "
+                "başlar, mağazaya gönderimi EasyCentral sayfasında elle onaylarsın."
+            ),
+            foreground="#b70", wraplength=760, justify="left",
+        ).grid(row=row, column=0, columnspan=3, sticky="w", pady=(0, 4))
         row += 1
 
         action_row = ttk.Frame(frm)
@@ -1025,9 +1941,11 @@ class KeepaApp:
         if target is None:
             return
 
+        sku_code = self.send_sku_code_var.get().strip() or None
+
         def do_paste():
             try:
-                result = target["paste_asins"](DEBUG_ADDRESS, asins)
+                result = target["paste_asins"](DEBUG_ADDRESS, asins, sku_code=sku_code)
                 self.event_queue.put(("send_status", result.get("message", "")))
             except Exception as error:
                 self.event_queue.put(("send_status", f"Yapıştırma başarısız: {error}"))
@@ -1043,23 +1961,42 @@ class KeepaApp:
         if target is None or "submit_and_start_scan" not in target:
             messagebox.showerror("Desteklenmiyor", "Bu hedef platform tek-adım gönderimi desteklemiyor.")
             return
+        auto_upload = self.send_auto_upload_var.get()
         # Bu adim EasyCentral'in gunluk kotasini harcar ve GERI ALINAMAZ --
         # otomatik akis hizli olsun diye kurulsa da, yanlislikla tikla(n)ip
-        # kota bosa gitmesin diye burada TEK bir onay birakiyoruz.
-        if not messagebox.askyesno(
-            "Onayla",
-            f"{len(asins)} ASIN, Chrome'da sayfa açılıp mağaza kontrolü yapıldıktan hemen sonra "
-            f"OTOMATİK olarak gönderilip taramayı başlatacak (EasyCentral kotasını harcar, geri alınamaz).\n\n"
-            f"Devam edilsin mi?",
-        ):
+        # kota bosa gitmesin diye burada TEK bir onay birakiyoruz. Magazaya
+        # otomatik yukleme ISARETLIYSE ekstra/daha sert bir uyari veriyoruz --
+        # bu, gozden gecirme adimini TAMAMEN atlayip urunleri dogrudan canli
+        # magazaya gonderen, GERCEKTEN geri alinamaz bir islem.
+        if auto_upload:
+            confirmed = messagebox.askyesno(
+                "MAĞAZAYA OTOMATİK GÖNDERİM -- ONAYLA",
+                f"{len(asins)} ASIN taranacak VE tarama bitince UYGUN çıkanlar SENİN gözden "
+                f"geçirmen beklenmeden DOĞRUDAN Amazon mağazana gönderilecek.\n\n"
+                f"Bu adım GERİ ALINAMAZ ve EasyCentral'ın kendisi bu seçeneği \"Önerilmez\" "
+                f"olarak işaretliyor.\n\nYine de devam edilsin mi?",
+                icon="warning",
+            )
+        else:
+            confirmed = messagebox.askyesno(
+                "Onayla",
+                f"{len(asins)} ASIN, Chrome'da sayfa açılıp mağaza kontrolü yapıldıktan hemen sonra "
+                f"OTOMATİK olarak gönderilip taramayı başlatacak (EasyCentral kotasını harcar, geri alınamaz).\n\n"
+                f"Devam edilsin mi?",
+            )
+        if not confirmed:
             return
 
         self.send_status_label.config(text="Chrome açılıyor, sayfa yükleniyor, gönderiliyor...", foreground="#555")
 
+        sku_code = self.send_sku_code_var.get().strip() or None
+
         def do_submit():
             try:
                 start_chrome_for_attachment(start_url="about:blank", headless=False)
-                result = target["submit_and_start_scan"](DEBUG_ADDRESS, asins)
+                result = target["submit_and_start_scan"](
+                    DEBUG_ADDRESS, asins, auto_upload_to_store=auto_upload, sku_code=sku_code
+                )
                 self.event_queue.put(("send_status", result.get("message", "")))
             except Exception as error:
                 self.event_queue.put(("send_status", f"Gönderim başarısız: {error}"))
@@ -1097,27 +2034,111 @@ class KeepaApp:
             text="JP gümrük riski kontrolü (pil/kablosuz/sıvı/bıçak/deri vb. başlıkları ele)",
             variable=self.check_customs_risk_var,
         ).grid(row=0, column=3, padx=8, pady=3, sticky="w")
-        ttk.Checkbutton(options_frame, text="Ekran görüntüsü kaydet", variable=self.screenshot_var).grid(
-            row=1, column=0, padx=8, pady=(0, 4), sticky="w"
+        # DROPSHIPPING MANTIGI (kullanicidan geldi, ozetle): kaynak (JP,
+        # Amazon.co.jp) sadece LISTELEME icin -- stok TUTULMUYOR. Siparis
+        # gelince urun HEDEF pazardan (asagida secilen ulke, ornek: ABD icin
+        # Amazon.com) satin alinip musteriye gonderiliyor. Yani ASIN'in
+        # hedef pazarda GERCEKTEN var olmasi hayati -- yoksa siparisi
+        # karsilayacak/kar hesabi yapacak bir kaynak yok demektir. Bu kontrol
+        # tam olarak bunu -- EasyCentral'a gondermeden once -- dogruluyor.
+        # (Ic test detaylari musteriye gosterilmiyor, sadece is mantigi.)
+        self.check_target_market_var = tk.BooleanVar(value=True)
+        target_market_cell = ttk.Frame(options_frame)
+        target_market_cell.grid(row=1, column=0, columnspan=2, padx=8, pady=(0, 4), sticky="w")
+        self.check_target_market_checkbox = ttk.Checkbutton(
+            target_market_cell, text="Hedef pazarda bulunabilirlik kontrolü",
+            variable=self.check_target_market_var,
         )
-        ttk.Label(options_frame, text="Paralel pencere:").grid(row=1, column=1, sticky="e", pady=(0, 4))
+        self.check_target_market_checkbox.pack(side="left")
+        HelpTooltip(
+            target_market_cell,
+            "Dropshipping'de stok tutmuyorsun -- sipariş gelince ürünü hedef pazardan (aşağıda "
+            "seçtiğin ülke) satın alıp müşteriye gönderiyorsun. Yani ASIN'in o ülkede GERÇEKTEN "
+            "satılıyor olması şart -- yoksa siparişi karşılayamaz, kâr hesabı yapamazsın.\n\n"
+            "Bu kontrol, EasyCentral'a göndermeden önce ürünün seçtiğin ülkede bulunup "
+            "bulunmadığını kontrol eder -- EasyCentral'ın \"Satıştan kaldırılmış\" diye elediği "
+            "ürünlerin çoğunu daha en baştan eler, günlük tarama hakkını boşa harcatmaz. Ekstra "
+            "bir Keepa API çağrısı (ekstra token) gerektirir.\n\nÖNEMLİ: SADECE hedef ülken de "
+            "bir Amazon pazarıysa işe yarar -- Keepa yalnızca Amazon'u izliyor, eBay vb. "
+            "Amazon-dışı bir hedefte bu kontrolün hiçbir anlamı yok, kapalı bırak.",
+        ).widget.pack(side="left", padx=(4, 0))
+        # Kutu DUZENLENEBILIR (readonly degil) -- listede olmayan bir ID'yi
+        # de elle yazabilir. Liste ve dogrulama notu: bkz. modul basi
+        # KEEPA_MARKET_DOMAINS.
+        self._target_market_label_to_id = {label: str(dom) for label, dom in KEEPA_MARKET_DOMAINS}
+        self._target_market_id_to_label = {str(dom): label for label, dom in KEEPA_MARKET_DOMAINS}
+        domain_cell = ttk.Frame(options_frame)
+        domain_cell.grid(row=1, column=2, columnspan=2, sticky="w", pady=(0, 4))
+        ttk.Label(domain_cell, text="Hedef ülke/mağaza:").pack(side="left")
+        self.target_market_domain_var = tk.StringVar(value="1")
+        self.target_market_domain_display_var = tk.StringVar(value=KEEPA_MARKET_DOMAINS[0][0])
+
+        def _on_target_market_label_change(_event=None):
+            label = self.target_market_domain_display_var.get()
+            if label in self._target_market_label_to_id:
+                self.target_market_domain_var.set(self._target_market_label_to_id[label])
+            else:
+                # Listede olmayan bir sey yazdiysa (elle ID girdiyse) oldugu
+                # gibi birak -- start_check zaten sayi oldugunu dogruluyor.
+                self.target_market_domain_var.set(label.strip())
+
+        self.target_market_domain_entry = ttk.Combobox(
+            domain_cell, textvariable=self.target_market_domain_display_var,
+            values=[label for label, _ in KEEPA_MARKET_DOMAINS], width=26,
+        )
+        self.target_market_domain_entry.pack(side="left", padx=(4, 0))
+        self.target_market_domain_entry.bind("<<ComboboxSelected>>", _on_target_market_label_change)
+        self.target_market_domain_entry.bind("<FocusOut>", _on_target_market_label_change)
+        HelpTooltip(
+            domain_cell,
+            "Sipariş gelince ürünü hangi ülkeden satın alıp müşteriye göndereceğini seç -- "
+            "senin dropshipping hedef pazarın. Emin değilsen listeden en yakın olanı seç ya da "
+            "kutuya doğrudan Keepa domain ID'sini yazabilirsin (Keepa'nın Product Finder "
+            "ekranındaki ülke seçiciden bulabilirsin).",
+        ).widget.pack(side="left", padx=(4, 0))
+        self.screenshot_checkbox = ttk.Checkbutton(
+            options_frame, text="Ekran görüntüsü kaydet", variable=self.screenshot_var
+        )
+        self.screenshot_checkbox.grid(row=2, column=0, padx=8, pady=(0, 4), sticky="w")
+        parallel_cell = ttk.Frame(options_frame)
+        parallel_cell.grid(row=2, column=1, columnspan=2, sticky="w", pady=(0, 4))
+        self.parallel_label = ttk.Label(parallel_cell, text="Paralel pencere:")
+        self.parallel_label.pack(side="left")
         self.parallel_var = tk.IntVar(value=4)
-        ttk.Spinbox(options_frame, from_=1, to=8, width=5, textvariable=self.parallel_var).grid(
-            row=1, column=2, sticky="w", pady=(0, 4)
-        )
+        self.parallel_spinbox = ttk.Spinbox(parallel_cell, from_=1, to=8, width=5, textvariable=self.parallel_var)
+        self.parallel_spinbox.pack(side="left", padx=(4, 0))
+        HelpTooltip(
+            parallel_cell,
+            "Chrome modunda aynı anda kaç sekme/pencere açılıp paralel kontrol edileceğini "
+            "belirler -- daha fazlası daha hızlı ama bilgisayarı daha çok yorar. API Modu'nda "
+            "hiç Chrome açılmadığı için bu ayarın bir anlamı yok, o modda otomatik devre dışı "
+            "kalır.",
+        ).widget.pack(side="left", padx=(4, 0))
         self.resume_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(
             options_frame,
             text="Daha önce taranmışları atla (kaldığı yerden devam et)",
             variable=self.resume_var,
-        ).grid(row=2, column=0, columnspan=3, padx=8, pady=(0, 4), sticky="w")
-        self.api_mode_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            options_frame,
-            text="API Modu (Chrome gerektirmez, Keepa API anahtarı ile hızlı çalışır)",
-            variable=self.api_mode_var,
         ).grid(row=3, column=0, columnspan=3, padx=8, pady=(0, 4), sticky="w")
+        self.api_mode_var = tk.BooleanVar(value=False)
+        api_mode_cell = ttk.Frame(options_frame)
+        api_mode_cell.grid(row=4, column=0, columnspan=3, padx=8, pady=(0, 4), sticky="w")
+        self.api_mode_checkbox = ttk.Checkbutton(
+            api_mode_cell, text="API Modu (Chrome gerektirmez, Keepa API anahtarı ile hızlı çalışır)",
+            variable=self.api_mode_var, command=self._on_api_mode_toggle,
+        )
+        self.api_mode_checkbox.pack(side="left")
+        HelpTooltip(
+            api_mode_cell,
+            "Açıksan: kontrol doğrudan Keepa'nın API'siyle yapılır -- Chrome açılmaz, çok daha "
+            "hızlıdır, ama ekran görüntüsü alınamaz (o seçenek bu modda otomatik devre dışı "
+            "kalır). Kapalıysa: Chrome üzerinden, Keepa'nın grafiğini okuyarak çalışır, daha "
+            "yavaştır ama ekran görüntüsü alabilir. Her iki mod için de kendi Keepa API "
+            "anahtarını Ayarlar > Keepa API Ayarları'ndan girmen gerekir.",
+        ).widget.pack(side="left", padx=(4, 0))
         row += 1
+
+        self._update_api_dependent_controls()
 
         self.start_button = ttk.Button(frm, text="Kontrolü Başlat", command=self.start_check)
         self.start_button.grid(row=row, column=0, pady=6, sticky="w")
@@ -1164,6 +2185,46 @@ class KeepaApp:
         self.license_status_label = ttk.Label(footer, text="", font=("Segoe UI", 8, "bold"))
         self.license_status_label.pack(anchor="w", pady=(3, 0))
         self.update_license_status()
+
+    def _on_api_mode_toggle(self):
+        """API Modu'nda ekran goruntusu ALINAMAZ (kod zaten bunu sessizce
+        yok sayiyordu: take_screenshot = screenshot_var and not api_mode) ve
+        "Paralel pencere" Chrome'a ozgu bir kavram (API Modu'nda hic
+        pencere/sekme acilmiyor) -- ama ikisi de tiklanabilir/degistirilebilir
+        GORUNUYORDU, bu da musteriye yanlis bir sey ayarlamis hissi
+        veriyordu (kullanicidan geldi, dogrulandi). Simdi API Modu'nda bu
+        secenekler gorsel olarak da devre disi birakiliyor, boylece ne
+        oldugu acik."""
+        if self.api_mode_var.get():
+            self.screenshot_checkbox.state(["disabled"])
+            self.parallel_spinbox.state(["disabled"])
+            self.parallel_label.state(["disabled"])
+        else:
+            self.screenshot_checkbox.state(["!disabled"])
+            self.parallel_spinbox.state(["!disabled"])
+            self.parallel_label.state(["!disabled"])
+
+    def _update_api_dependent_controls(self):
+        """API Modu ve Hedef Pazar Kontrolu, IKISI de musterinin KENDI Keepa
+        API anahtarini gerektiriyor. Anahtar hic girilmemisse bu iki
+        secenegi (ve hedef domain alanini) gorsel olarak devre disi
+        birakiyoruz -- eskiden sadece 'Baslat'a basinca bir uyari penceresi
+        cikiyordu, musteri once neden calismadigini anlayamiyordu
+        (kullanicidan geldi, dogrulandi: 'ne yaparsam aktif olacagi belli
+        degil'). Ayarlar > Keepa API Ayarlari'ndan anahtar kaydedilince
+        (bkz. show_api_settings_dialog/do_save) bu fonksiyon tekrar
+        cagrilir, secenekler otomatik aktif olur."""
+        has_key = keepa_api_settings.has_api_key()
+        widgets = [self.check_target_market_checkbox, self.target_market_domain_entry, self.api_mode_checkbox]
+        if has_key:
+            for widget in widgets:
+                widget.state(["!disabled"])
+        else:
+            for widget in widgets:
+                widget.state(["disabled"])
+            self.check_target_market_var.set(False)
+            self.api_mode_var.set(False)
+        self._on_api_mode_toggle()
 
     # -------------------------------------------------------------- dialogs
     def show_help(self):
@@ -1277,6 +2338,7 @@ class KeepaApp:
             try:
                 keepa_api_settings.save_api_key(key)
                 status_label.config(text="Kaydedildi.", foreground="#0a5")
+                self._update_api_dependent_controls()
             except Exception as error:
                 messagebox.showerror("Hata", f"Anahtar kaydedilemedi: {error}", parent=dialog)
 
@@ -1462,9 +2524,25 @@ class KeepaApp:
         if not self.asins:
             messagebox.showwarning("Liste boş", "Önce Dosya menüsünden bir ASIN listesi yükle.")
             return
-        if not (self.require_year_var.get() or self.check_gaps_var.get() or self.check_dead_stock_var.get()):
+        if not (
+            self.require_year_var.get() or self.check_gaps_var.get() or self.check_dead_stock_var.get()
+            or self.check_target_market_var.get()
+        ):
             messagebox.showwarning("Seçenek yok", "En az bir kontrol seçeneği işaretli olmalı.")
             return
+        target_market_domain = None
+        if self.check_target_market_var.get():
+            try:
+                target_market_domain = int(self.target_market_domain_var.get().strip())
+                if target_market_domain <= 0:
+                    raise ValueError
+            except ValueError:
+                messagebox.showwarning(
+                    "Geçersiz hedef ülke",
+                    "Hedef ülke/mağaza alanından listeden bir ülke seç, ya da kutuya doğrudan "
+                    "Keepa domain ID'sini (pozitif bir sayı, örn. 1 = Amazon.com) yaz.",
+                )
+                return
         if not has_internet():
             messagebox.showerror(
                 "İnternet bağlantısı yok",
@@ -1475,10 +2553,11 @@ class KeepaApp:
         if not license_guard.is_licensed() and license_guard.remaining_trial() <= 0:
             if not self.show_license_dialog():
                 return
-        if self.api_mode_var.get() and not keepa_api_settings.has_api_key():
+        if (self.api_mode_var.get() or self.check_target_market_var.get()) and not keepa_api_settings.has_api_key():
             messagebox.showwarning(
                 "Keepa API anahtarı eksik",
-                "API Modu için önce kendi Keepa API anahtarını girmelisin.\n\n"
+                "API Modu veya 'Hedef pazarda bulunabilirlik kontrolü' için önce kendi Keepa "
+                "API anahtarını girmelisin.\n\n"
                 "Ayarlar > Keepa API Ayarları... menüsünden anahtarını ekleyebilirsin.",
             )
             return
@@ -1531,6 +2610,9 @@ class KeepaApp:
             "require_year": self.require_year_var.get(),
             "check_gaps": self.check_gaps_var.get(),
             "check_dead_stock": self.check_dead_stock_var.get(),
+            "check_target_market": self.check_target_market_var.get(),
+            "target_market_domain": target_market_domain,
+            "domain": int(self.source_market_domain_var.get()),
         }
         api_mode = self.api_mode_var.get()
         take_screenshot = self.screenshot_var.get() and not api_mode  # API modunda ekran goruntusu alinamaz
@@ -1563,7 +2645,16 @@ class KeepaApp:
 
     def _run_check(self, asins, take_screenshot, max_workers, output_dir, check_options, run_id, already_done, api_mode=False):
         prevent_sleep()
-        api_key_for_run = keepa_api_settings.load_api_key() if api_mode else None
+        # Hedef pazar kontrolu (check_target_market) Chrome modunda da bir
+        # Keepa API cagrisi gerektirir -- api_mode disinda da musterinin
+        # KENDI anahtarini (keyring) yukluyoruz, boylece keepa_check.py
+        # ICE DUSMUS gelistirici-anahtari fallback'ine (frozen exe'de
+        # kasitli olarak hata firlatir) hic dusmez.
+        api_key_for_run = (
+            keepa_api_settings.load_api_key()
+            if (api_mode or check_options.get("check_target_market"))
+            else None
+        )
         if asins and not api_mode:
             try:
                 start_chrome_for_attachment(start_url="about:blank", headless=True)
@@ -1597,9 +2688,14 @@ class KeepaApp:
                             check_gaps=check_options["check_gaps"],
                             check_dead_stock=check_options["check_dead_stock"],
                             check_customs_risk=self.check_customs_risk_var.get(),
+                            check_target_market=check_options["check_target_market"],
+                            target_market_domain=check_options["target_market_domain"],
+                            domain=check_options["domain"],
                         )
                     else:
-                        result = keepa_check_detailed(asin, take_screenshot=take_screenshot, **check_options)
+                        result = keepa_check_detailed(
+                            asin, take_screenshot=take_screenshot, api_key=api_key_for_run, **check_options
+                        )
                     return asin, result, None, time.monotonic() - started
                 except Exception as error:
                     last_error, last_trace = error, traceback.format_exc()

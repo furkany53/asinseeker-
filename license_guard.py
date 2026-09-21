@@ -35,7 +35,7 @@ PROGRAM_NAME = "AsinSeeker"
 # ELLE senkron tutulmali (PyInstaller'in .exe'nin dosya ozelliklerine
 # yazdigi versiyonla BURADAKI, GUI ustbilgisinde/hakkinda kutusunda
 # gosterilen versiyon ayni olsun diye).
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 # Kisisel isim/e-posta UI'da GOSTERILMIYOR (musteriye gitmeden once gizlenmesi
 # istendi) -- gercek iletisim kanali (site/e-posta) belirlenince buraya
 # eklenir. Bos oldugu surece CONTACT_PLACEHOLDER kullanilir.

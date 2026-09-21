@@ -243,9 +243,16 @@ STRATEGY_BASE_RED_LINES = {
     "productType": ["0"],
     "singleVariation": True,
     # trackingSince_lte disaridan (fetch_strategy_asins) her calistirmada
-    # "bugun - 365 gun" olarak enjekte edilir -- burada sabit birakilmaz.
+    # "bugun - STRATEGY_TRACKING_SINCE_DAYS gun" olarak enjekte edilir --
+    # burada sabit birakilmaz.
     "current_BUY_BOX_SHIPPING_gte": 5000,
     "current_BUY_BOX_SHIPPING_lte": 90000,
+    # current_NEW: "su an gercekten bir NEW fiyat var mi" -- BUY_BOX_SHIPPING'den
+    # FARKLI bir price type, ikisi birlikte "olu listing" ihtimalini dusurur
+    # (ChatGPT onerisi, CANLI dogrulandi: S2'de sonucu sifirlamadi, 100 ASIN
+    # donduruldu -- bkz. konusma gecmisi 2026-09-14).
+    "current_NEW_gte": 5000,
+    "current_NEW_lte": 90000,
     "current_COUNT_NEW_gte": 1,
     "current_COUNT_NEW_lte": 15,
     "avg365_COUNT_NEW_gte": 3,
@@ -265,9 +272,25 @@ STRATEGY_BASE_RED_LINES = {
     "isHeatSensitive": False,
     "isAdultProduct": False,
     "outOfStockPercentage90_BB_lte": 25,
+    # NEW icin ayrica OOS yuzdesi -- "bugun tesadufen aktif gorunse bile son
+    # 90 gunun cogunda NEW olarak satista degilse" adaylarini eler.
+    "outOfStockPercentage90_NEW_lte": 15,
+    # Dropshipping modeli icin: su an en az 1 FBM teklifi olmasi VE bu
+    # teklifin Buy Box'a uygun olmasi -- S4_FBM_FRIENDLY'nin kendi override'i
+    # (offerCountFBM_gte/lte) bunun UZERINE yazar, cakisma yok.
+    "offerCountFBM_gte": 1,
+    "buyBoxEligibleOfferCountsNewFBM_gte": 1,
     "deltaPercent90_BUY_BOX_SHIPPING_gte": -20,
     "deltaPercent90_BUY_BOX_SHIPPING_lte": 20,
 }
+
+# Kullanicidan ONAY alindi (2026-09-14): 1 yillik takip sarti, havuzu
+# gereksiz kisitliyordu -- 6 aya (180 gun) cekildi. CANLI olcum: S2_BALANCED
+# icin 365 gun=3850, 180 gun=4494 sonuc (~%17 artis). Bu, EasyCentral'daki
+# UYGUN ORANINI degistirmez (o darbogaz Keepa disi -- yasakli marka/fiyat
+# farki/FBM satici yoklugu), ama mutlak aday/uygun SAYISINI artirir --
+# "magaza sayimiz yetersiz" sorununun cozumu tam olarak bu.
+STRATEGY_TRACKING_SINCE_DAYS = 180
 
 STRATEGIES = {
     "S1_HOT_ROTATION": {
@@ -339,8 +362,12 @@ def build_strategy_selection(strategy_name, sales_gte, sales_lte, page):
     kalir, genel 0-500000 taramasindan bagimsizdir."""
     strategy = STRATEGIES[strategy_name]
     selection = dict(STRATEGY_BASE_RED_LINES)
-    selection["trackingSince_lte"] = keepa_minutes(datetime.now(timezone.utc) - timedelta(days=365))
-    selection["lastOffersUpdate_gte"] = keepa_minutes(datetime.now(timezone.utc) - timedelta(hours=72))
+    selection["trackingSince_lte"] = keepa_minutes(
+        datetime.now(timezone.utc) - timedelta(days=STRATEGY_TRACKING_SINCE_DAYS)
+    )
+    selection["lastOffersUpdate_gte"] = keepa_minutes(
+        datetime.now(timezone.utc) - timedelta(days=RECENT_OFFERS_UPDATE_DAYS)
+    )
     selection.update(strategy["overrides"])
     selection["current_SALES_gte"] = sales_gte
     selection["current_SALES_lte"] = sales_lte
@@ -357,6 +384,14 @@ def fetch_strategy_asins(strategy_name, output_dir, progress=None, stop_event=No
     Keepa'nin kendi sayfa mekanizmasiyla halledilir)."""
     strategy = STRATEGIES[strategy_name]
     sales_gte, sales_lte = strategy["sales_gte"], strategy["sales_lte"]
+    # output_dir burada (fetch_strategy_asins cagiranlari -- GUI, run_all_strategies.py)
+    # BASE_DIR'in DOGRUDAN altinda ("keepa_arama_S1_..." gibi), keepa_sync/'in
+    # ICINDE DEGIL -- fetch_all_asins'in "output_dir'in kardesi" varsayilani
+    # bu yuzden YANLIS konuma (BASE_DIR/ortak_asin_havuzu.txt) yazardi (CANLI
+    # dogrulandi, 2 KERE yasandi -- 18.343 sonra 233 ASIN yanlis dosyaya
+    # yazildi, elle duzeltildi). Burada ACIKCA dogru/kalici konumu veriyoruz.
+    if shared_pool_path is None:
+        shared_pool_path = BASE_DIR / "keepa_sync" / "ortak_asin_havuzu.txt"
 
     def selection_builder(slice_start, slice_end, page):
         return build_strategy_selection(strategy_name, slice_start, slice_end, page)
@@ -366,6 +401,323 @@ def fetch_strategy_asins(strategy_name, output_dir, progress=None, stop_event=No
         sales_rank_start=sales_gte,
         sales_rank_end=sales_lte,
         sales_rank_step=(sales_lte - sales_gte + 1),
+        progress=progress,
+        stop_event=stop_event,
+        shared_pool_path=shared_pool_path,
+        selection_builder=selection_builder,
+        api_key=api_key,
+    )
+
+
+# --- KATEGORI + DINAMIK SALES RANK BANT SISTEMI ----------------------------
+#
+# NEDEN: Sabit "0-500000 tara" (ya da tek bir sabit kategori-derinligi tavani)
+# yanlis -- 100.000 Sales Rank, kucuk bir kategoride "hemen hemen hic satmiyor"
+# demekken, dev bir kategoride (Electronics gibi) hala guclu satis anlamina
+# gelebilir. Kullanicidan (2026-09-14) gelen "kategori kategori, once ana
+# sonra alt sonra alt-alt kategoriye inelim" fikri, baska bir sohbette
+# (ChatGPT) daha da olgunlastirildi: her kategorinin KENDI 'highestRank'ine
+# GORE ORANLI 3 Sales Rank bandi + rank kotulestikce (B, C bantlari) daha
+# fazla SATIS KANITI (salesRankDrops) isteyerek "kotu rank ama gercekten
+# satiyor" urunleri de yakala.
+#
+# CANLI DOGRULAMA (2026-09-14):
+#  - Category API COK UCUZ: 3 kategori ID'si TEK cagride 1 token.
+#  - categories_include (kok OLMAYAN bir alt kategori ID'siyle) GERCEKTEN
+#    calisiyor: sifir olmayan, mantikli sonuc dondu (171 urun).
+#  - salesRankReference alani (kategori rank karisikligini onlemesi
+#    beklenen filtre) test edildi ama AYNI kategori ID'siyle 0 sonuc
+#    dondurdu -- bu ya yanlis kullanim ya da beklenenden farkli calisiyor.
+#    DOGRULANAMADI, bu yuzden BURADA KULLANILMIYOR (projenin "dogrulanmamis
+#    alana guvenme" kurali geregi). Ileride token bolluğunda ayrica test
+#    edilip eklenebilir.
+CATEGORY_API_URL = "https://api.keepa.com/category"
+CATEGORY_BATCH_SIZE = 10  # CANLI dogrulandi (2026-09-14): Keepa "Maximum allowed Category
+# batch size is 10" hatasi (HTTP 405) donduruyor -- 100 varsayimimiz YANLISTI,
+# 29 ID'lik gercek bir batch'te build_category_tree_plan'i cokertti. Dogru
+# tavan 10.
+
+# Bu isim parcalarini iceren kategoriler HIC islenmiyor -- ya fiziksel urun
+# olmayan icerik (DVD/muzik/e-kitap/oyun/uygulama/Kindle -- productType:0
+# zaten urun bazinda eler ama hic sablon uretmemek zaman/token tasarrufu
+# saglar) ya da neredeyse tamami JP gumruk/mevzuat riski tasiyan urunler
+# (eczane/ilac, kozmetik/sivi, gida/alkol -- kullanicidan geldi, 2026-09-14:
+# "gumrukte sorun olacak basliklari direk eleyebilirsin"). Bu SADECE kaba
+# bir on-eleme -- asil guvenlik agi keepa_check.py'deki BASLIK bazli
+# CUSTOMS_RISK_KEYWORDS_PATTERN kontrolüdür, bu onun YERINE GECMEZ.
+CATEGORY_NAME_EXCLUDE_SUBSTRINGS = (
+    "DVD", "ミュージック", "PCソフト", "ゲーム", "Kindle", "Prime Video",
+    "デジタルミュージック", "アプリ", "洋書", "Alexa", "本",
+    "ドラッグストア", "ビューティー", "食品・飲料・お酒",
+    # 2026-09-14, ikinci Gemini degerlendirmesi: bebek/cocuk urunleri JP'de
+    # ekstra guvenlik sertifikasi (PSE vb.) riski tasiyor -- kok kategori
+    # agacimizda canli dogrulandi ("ベビー＆マタニティ").
+    "ベビー＆マタニティ",
+)
+
+# Kategorinin KENDI highestRank'ine GORE ORANLI 3 bant (ChatGPT'nin ornekleri
+# ile tutarli: 450k'lik kategoride A:0-20%, B:20-53%, C:53-100%; 800k'lik
+# kategoride A:0-18.75%, B:18.75-50%, C:50-100% -- burada biraz yuvarlatildi).
+CATEGORY_BAND_FRACTIONS = (
+    ("A", 0.0, 0.20),
+    ("B", 0.20, 0.50),
+    ("C", 0.50, 1.00),
+)
+# Rank kotulestikce (B, C) daha fazla satis KANITI istiyoruz -- "kotu rank
+# ama duzenli rank hareketi var" urunleri de yakalamak icin (ChatGPT'nin
+# mantigi: rank tek basina yeterli sinyal degil, dususlerle desteklenmeli).
+CATEGORY_BAND_SALES_PROOF = {
+    "A": {},
+    "B": {"salesRankDrops90_gte": 5},
+    "C": {"salesRankDrops90_gte": 15},
+}
+
+CATEGORY_DESCEND_IF_ABOVE = 3000  # bir bantta bu kadardan fazla eslesme varsa -- kategori COK GENIS, child'a in
+CATEGORY_SKIP_IF_BELOW = 20  # bu kadardan az eslesme varsa -- bu bant/kategori kombinasyonu HARCAMAYA DEGMEZ, atla
+CATEGORY_MAX_DEPTH = 2  # kok (0) + en fazla bu kadar seviye asagi (kullanicinin istedigi: ana/alt/alt-alt = 0,1,2)
+
+
+def _category_name_excluded(name):
+    if not name:
+        return False
+    return any(s in name for s in CATEGORY_NAME_EXCLUDE_SUBSTRINGS)
+
+
+def _fetch_category_batch(api_key, category_ids, stop_event=None, max_retries=8):
+    """Birden fazla kategori ID'sini TEK /category cagrisinda ceker (virgulle
+    birlestirilmis) -- CANLI dogrulandi: 3 ID = 1 token. category_ids
+    CATEGORY_BATCH_SIZE'lik parcalara bolunur (guvenli tavan).
+
+    Paylasilan token havuzu baska bir surecle (full_pool_check.py, diger
+    stratejiler) YARISIRKEN 429 almak CANLI dogrulandi (cok sik) -- bunu
+    yakalamazsak TUM plan olusturma ilk cagride cokerdi (yasandi, 2026-09-14).
+    fetch_all_asins'deki AYNI 'bekle ve tekrar dene' mantigini uyguluyoruz."""
+    result = {}
+    ids = list(category_ids)
+    for i in range(0, len(ids), CATEGORY_BATCH_SIZE):
+        chunk = ids[i:i + CATEGORY_BATCH_SIZE]
+        params = {"key": api_key, "domain": str(DOMAIN), "category": ",".join(str(c) for c in chunk)}
+        url = CATEGORY_API_URL + "?" + urllib.parse.urlencode(params)
+        for attempt in range(max_retries):
+            try:
+                request = urllib.request.Request(url)
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    raw = response.read()
+                if raw[:2] == b"\x1f\x8b":
+                    raw = gzip.decompress(raw)
+                data = json.loads(raw.decode("utf-8"))
+                result.update(data.get("categories") or {})
+                break
+            except urllib.error.HTTPError as error:
+                if error.code in (429, 400) and attempt < max_retries - 1:
+                    wait_seconds = min(30 * (attempt + 1), 180)
+                    interruptible_sleep(wait_seconds, stop_event)
+                    continue
+                raise
+    return result
+
+
+def build_category_band_selection(cat_id, sales_gte, sales_lte, band_letter, page=0):
+    """Bir kategori + bant icin Keepa selection sozlugunu kurar. STRATEGY_BASE_RED_LINES
+    ile AYNI temel guvenli/olu-ASIN-eleme kirmizi cizgilerini kullanir, kategori
+    ve banda ozel Sales Rank araligi + satis-kaniti eklerini uzerine koyar."""
+    selection = dict(STRATEGY_BASE_RED_LINES)
+    selection["trackingSince_lte"] = keepa_minutes(
+        datetime.now(timezone.utc) - timedelta(days=STRATEGY_TRACKING_SINCE_DAYS)
+    )
+    selection["lastOffersUpdate_gte"] = keepa_minutes(
+        datetime.now(timezone.utc) - timedelta(days=RECENT_OFFERS_UPDATE_DAYS)
+    )
+    selection["categories_include"] = [cat_id]
+    selection["current_SALES_gte"] = max(1, sales_gte)
+    selection["current_SALES_lte"] = sales_lte
+    selection.update(CATEGORY_BAND_SALES_PROOF.get(band_letter, {}))
+    selection["perPage"] = PER_PAGE
+    selection["page"] = page
+    return selection
+
+
+def _check_band_total_results(api_key, cat_id, sales_gte, sales_lte, band_letter, stop_event=None, max_retries=6):
+    """UCUZ (perPage=100, ~11 token) bir on-kontrol -- gercek ASIN listesini
+    cekmeden sadece o kategori/bant kombinasyonunda kac urun eslestigini
+    ogrenir. Asil harcama (fetch_category_band_asins) sadece bu on-kontrolden
+    'harcamaya deger' cikan kombinasyonlar icin yapilir.
+
+    query_keepa HTTP hatalarini (429/400 -- paylasilan token havuzu baska bir
+    surecle YARISIRKEN CANLI dogrulandi, cok sik oluyor) YAKALAMIYOR --
+    burada fetch_all_asins'deki AYNI 'bekle ve tekrar dene' mantigini
+    uyguluyoruz, aksi halde tum plan olusturma tek bir gecici hatada cokerdi."""
+    selection = build_category_band_selection(cat_id, sales_gte, sales_lte, band_letter, page=0)
+    selection["perPage"] = 100
+    for attempt in range(max_retries):
+        try:
+            data = query_keepa(api_key, selection)
+            return data.get("totalResults"), data
+        except urllib.error.HTTPError as error:
+            if error.code in (429, 400) and attempt < max_retries - 1:
+                wait_seconds = min(30 * (attempt + 1), 180)
+                interruptible_sleep(wait_seconds, stop_event)
+                continue
+            return None, None
+        except Exception:
+            return None, None
+    return None, None
+
+
+def build_category_tree_plan(api_key, progress=None, stop_event=None, max_depth=CATEGORY_MAX_DEPTH, save_callback=None):
+    """Japonya kategori agacini kok'ten baslayip (fiziksel-disi/gumruk-riskli
+    kategorileri dislayarak) asagi iner. Her kategori dugumu icin 3 dinamik
+    Sales Rank bandini (highestRank'e oranli) UCUZ bir totalResults on-kontrolu
+    ile degerlendirir:
+      - COK GENIS (> CATEGORY_DESCEND_IF_ABOVE) -> bu bandi ATLA, child'lara IN
+      - COK DAR (< CATEGORY_SKIP_IF_BELOW) -> bu bant harcamaya degmez, ATLA
+      - ARADA -> "harcamaya hazir" bir sablon olarak PLAN'a ekle (henuz ASIN
+        cekilmez -- bkz. fetch_category_plan_asins)
+    Donen: [{"catId", "name", "path", "depth", "band", "sales_gte",
+             "sales_lte", "total_results"}] listesi (JSON'a yazilabilir)."""
+    def emit(msg):
+        if progress:
+            progress(msg)
+
+    def stopped():
+        return stop_event is not None and stop_event.is_set()
+
+    plan = []
+    root_data = _fetch_category_batch(api_key, [0], stop_event=stop_event)
+    frontier = [
+        (cid, info, [info.get("name")])
+        for cid, info in root_data.items()
+        if info.get("parent") == 0 and not _category_name_excluded(info.get("name"))
+    ]
+    emit(f"{len(frontier)} kok kategori bulundu (dislananlar haric).")
+
+    depth = 0
+    while frontier and depth <= max_depth and not stopped():
+        emit(f"--- Derinlik {depth}: {len(frontier)} kategori degerlendiriliyor ---")
+        next_frontier = []
+        for cat_id, info, path in frontier:
+            if stopped():
+                break
+            name = info.get("name") or str(cat_id)
+            highest_rank = info.get("highestRank") or 0
+            if not highest_rank or highest_rank < 100:
+                emit(f"  [{cat_id}] {name}: highestRank yok/cok kucuk, atlaniyor.")
+                continue
+
+            widest_total = None
+            any_kept = False
+            for band_letter, frac_start, frac_end in CATEGORY_BAND_FRACTIONS:
+                sales_gte = max(1, int(highest_rank * frac_start) + (1 if frac_start > 0 else 0))
+                sales_lte = max(sales_gte, int(highest_rank * frac_end))
+                total, _data = _check_band_total_results(api_key, cat_id, sales_gte, sales_lte, band_letter)
+                if band_letter == "A":
+                    widest_total = total
+                if total is None:
+                    emit(f"  [{cat_id}] {name} bant {band_letter} ({sales_gte}-{sales_lte}): HATA/yanit yok.")
+                    continue
+                if total > CATEGORY_DESCEND_IF_ABOVE:
+                    emit(f"  [{cat_id}] {name} bant {band_letter} ({sales_gte}-{sales_lte}): {total} -- COK GENIS, child'a inilecek.")
+                    continue
+                if total < CATEGORY_SKIP_IF_BELOW:
+                    emit(f"  [{cat_id}] {name} bant {band_letter} ({sales_gte}-{sales_lte}): {total} -- cok az, atlaniyor.")
+                    continue
+                any_kept = True
+                plan.append({
+                    "catId": int(cat_id), "name": name, "path": " > ".join(path),
+                    "depth": depth, "band": band_letter,
+                    "sales_gte": sales_gte, "sales_lte": sales_lte,
+                    "total_results": total,
+                })
+                emit(f"  [{cat_id}] {name} bant {band_letter} ({sales_gte}-{sales_lte}): {total} -- PLANA EKLENDI.")
+
+            # Descend kosulu: en genis bant (A, tum kategoriyi kapsayan en
+            # kucuk rank araligindan farkli olarak burada TUM kategoriyi temsil
+            # eden gosterge olarak A bandinin genisligini kullaniyoruz) COK
+            # genisse VEYA hicbir bant "harcamaya hazir" cikmadiysa (hepsi ya
+            # cok genis ya da child'lar daha isabetli olabilir) children'a in.
+            children = info.get("children") or []
+            should_descend = (widest_total is not None and widest_total > CATEGORY_DESCEND_IF_ABOVE) or not any_kept
+            if should_descend and children and depth < max_depth:
+                next_frontier.append((cat_id, info, path, children))
+
+        if not next_frontier:
+            break
+
+        child_ids = sorted({cid for _, _, _, children in next_frontier for cid in children})
+        emit(f"Derinlik {depth + 1} icin {len(child_ids)} alt kategori cekiliyor...")
+        child_data = _fetch_category_batch(api_key, child_ids, stop_event=stop_event)
+        path_by_child = {}
+        for _parent_id, _info, parent_path, children in next_frontier:
+            for cid in children:
+                path_by_child[cid] = parent_path
+
+        frontier = []
+        for cid, info in child_data.items():
+            if _category_name_excluded(info.get("name")):
+                continue
+            parent_path = path_by_child.get(int(cid)) or path_by_child.get(cid) or []
+            frontier.append((cid, info, parent_path + [info.get("name")]))
+        depth += 1
+
+        if save_callback:
+            # Her derinlik seviyesi bitince ARA KAYIT -- beklenmeyen bir hata
+            # (orn. bilinmeyen bir HTTP kodu) TUM calismayi cokertirse, o ana
+            # kadarki (token harcanarak elde edilmis) ilerleme KAYBOLMASIN
+            # diye (canli yasandi: 405 hatasi -- yanlis batch boyutu -- 3
+            # derinlik seviyesi calismasini sildi, 2026-09-14).
+            try:
+                save_callback(plan)
+            except Exception:
+                pass
+
+    emit(f">>> Plan tamamlandi: {len(plan)} kategori/bant kombinasyonu.")
+    return plan
+
+
+CATEGORY_PLAN_CACHE_FILE = BASE_DIR / "keepa_kategori_plani.json"
+
+
+def save_category_plan(plan, path=None):
+    path = Path(path) if path else CATEGORY_PLAN_CACHE_FILE
+    path.write_text(
+        json.dumps({"fetched_at": time.time(), "plan": plan}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def load_category_plan(path=None, max_age_days=None):
+    path = Path(path) if path else CATEGORY_PLAN_CACHE_FILE
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if max_age_days is not None:
+        age_days = (time.time() - data.get("fetched_at", 0)) / 86400
+        if age_days > max_age_days:
+            return None
+    return data.get("plan")
+
+
+def fetch_category_plan_asins(plan_entry, output_dir, progress=None, stop_event=None, shared_pool_path=None, api_key=None):
+    """build_category_tree_plan'in URETTIGI TEK bir plan girdisini (kategori +
+    bant) gercekten tarar -- fetch_strategy_asins ile AYNI kesintiye-dayanikli
+    motoru kullanir. shared_pool_path varsayilani icin bkz. fetch_strategy_asins
+    icindeki ayni notu (output_dir burada da BASE_DIR'in kardesi degil)."""
+    if shared_pool_path is None:
+        shared_pool_path = BASE_DIR / "keepa_sync" / "ortak_asin_havuzu.txt"
+
+    def selection_builder(slice_start, slice_end, page):
+        return build_category_band_selection(
+            plan_entry["catId"], slice_start, slice_end, plan_entry["band"], page=page
+        )
+
+    return fetch_all_asins(
+        output_dir,
+        sales_rank_start=plan_entry["sales_gte"],
+        sales_rank_end=plan_entry["sales_lte"],
+        sales_rank_step=(plan_entry["sales_lte"] - plan_entry["sales_gte"] + 1),
         progress=progress,
         stop_event=stop_event,
         shared_pool_path=shared_pool_path,

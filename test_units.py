@@ -57,6 +57,22 @@ def with_mocked_fetch(fake_product_response, fn, *args, **kwargs):
         keepa_check._fetch_product = original
 
 
+def with_mocked_fetch_by_domain(responses_by_domain, fn, *args, **kwargs):
+    """domain'e gore FARKLI sahte yanit -- hedef pazar kontrolu gibi, ayni
+    ASIN icin BIRDEN FAZLA domain'e (5=JP, 1=US) ayri cagri yapan mantigi
+    test etmek icin."""
+    original = keepa_check._fetch_product
+
+    def fake(asin, api_key, domain=None, stop_event=None):
+        return responses_by_domain[domain]
+
+    keepa_check._fetch_product = fake
+    try:
+        return fn(*args, **kwargs)
+    finally:
+        keepa_check._fetch_product = original
+
+
 # --------------------------------------------------- keepa_check_detailed_api
 
 def test_check_api_regression():
@@ -137,6 +153,57 @@ def test_check_api_regression():
         result["status"] == "upload", str(result),
     )
 
+    # 8) Hedef pazar kontrolu (check_target_market) -- JP tarafi tertemiz
+    #    ama ASIN hedef pazarda (US, domain=1) HIC bulunamiyor -> delete,
+    #    reason=hedef_pazarda_yok. (99 gercek EasyCentral ornegiyle %100
+    #    dogrulanmis gercek dunya senaryosu, bkz. proje konusma gecmisi.)
+    result = with_mocked_fetch_by_domain(
+        {5: {"products": [make_product(series_ok)]}, 1: {"products": [None]}},
+        keepa_check.keepa_check_detailed_api, "B0TESTNOUS", api_key="x", check_target_market=True,
+    )
+    check(
+        "API check: JP temiz ama hedef pazarda yok -> delete/hedef_pazarda_yok",
+        result["status"] == "delete" and result["reason"] == "hedef_pazarda_yok", str(result),
+    )
+
+    # 9) Ayni JP verisi ama ASIN hedef pazarda DA var -> upload.
+    result = with_mocked_fetch_by_domain(
+        {5: {"products": [make_product(series_ok)]}, 1: {"products": [{"title": "US Title"}]}},
+        keepa_check.keepa_check_detailed_api, "B0TESTHASUS", api_key="x", check_target_market=True,
+    )
+    check(
+        "API check: JP temiz + hedef pazarda var -> upload",
+        result["status"] == "upload", str(result),
+    )
+
+    # 10) check_target_market=False (varsayilan) iken hedef pazar HIC
+    #     sorulmuyor -- ekstra token harcamiyor. domain=1 icin YANLISLIKLA
+    #     bir _fetch_product cagrisi yapilirsa (mock'ta tanimsiz) KeyError
+    #     firlar, bu da testin kendisini basarisiz eder -- yani bu test
+    #     "hic cagrilmadi" garantisini dolayli olarak dogrular.
+    result = with_mocked_fetch_by_domain(
+        {5: {"products": [make_product(series_ok)]}},
+        keepa_check.keepa_check_detailed_api, "B0TESTNOCHECK", api_key="x",
+    )
+    check(
+        "API check: check_target_market=False -> hedef pazar hic sorulmuyor, upload",
+        result["status"] == "upload", str(result),
+    )
+
+    # 11) target_market_domain ayarlanabilir -- varsayilan (1) yerine ozel
+    #     bir domain (ornegin 6=Amazon.ca) verilirse GERCEKTEN o domain
+    #     sorgulanmali. Mock'ta SADECE domain=6 icin veri var; eger kod hala
+    #     sessizce domain=1'e sorarsa KeyError ile test patlar.
+    result = with_mocked_fetch_by_domain(
+        {5: {"products": [make_product(series_ok)]}, 6: {"products": [{"title": "CA Title"}]}},
+        keepa_check.keepa_check_detailed_api, "B0TESTCUSTOMDOM", api_key="x",
+        check_target_market=True, target_market_domain=6,
+    )
+    check(
+        "API check: ozel target_market_domain=6 gercekten kullaniliyor -> upload",
+        result["status"] == "upload", str(result),
+    )
+
 
 # ------------------------------------------------------------- license_guard
 
@@ -196,10 +263,100 @@ def test_strategies_sentinel_guard():
         _assert_sentinels(selection, name)
 
 
+def test_fetch_product_retries_network_errors():
+    """2026-09-16'da full_pool_check.py'nin 108K'lik taramasinda canli
+    dogrulandi: "hata" satirlarinin %95'i Keepa'yla ilgisiz DNS/baglanti
+    hatasiydi (getaddrinfo failed vb.) ve HIC yeniden denenmiyordu --
+    _fetch_product SADECE HTTP 429'u retry ediyordu. Bu test, URLError'in
+    (DNS/baglanti) da retry edildigini ve birkac basarisizliktan SONRA
+    basarili olursa dogru sonucu dondurdugunu dogrular."""
+    import urllib.error
+    import urllib.request
+
+    original_urlopen = urllib.request.urlopen
+    call_count = {"n": 0}
+
+    class _FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"products": [{"title": "OK"}]}'
+
+    def fake_urlopen(request, timeout=30):
+        call_count["n"] += 1
+        if call_count["n"] < 3:
+            raise urllib.error.URLError("getaddrinfo failed (sahte)")
+        return _FakeResponse()
+
+    original_sleep = keepa_check.time.sleep
+    urllib.request.urlopen = fake_urlopen
+    keepa_check.time.sleep = lambda s: None
+    try:
+        data = keepa_check._fetch_product("B0TESTNET", "fake-key")
+        check(
+            "_fetch_product: URLError (DNS/baglanti) 2 kez basarisiz olup 3. denemede basarili",
+            call_count["n"] == 3 and data.get("products", [{}])[0].get("title") == "OK",
+            f"call_count={call_count['n']}, data={data}",
+        )
+    finally:
+        urllib.request.urlopen = original_urlopen
+        keepa_check.time.sleep = original_sleep
+
+
+def test_priority_score_v2_sales_volume():
+    """2026-09-18'de musteriden geldi: skorlama artik sadece risk degil,
+    "kanitlanmis satis hacmi" de iceriyor (monthlySold / trend). Bu test,
+    sentetik stats verisiyle yeni bilesenlerin dogru agirlikta calistigini
+    dogrular -- gercek API cagrisi yapmaz."""
+    base_stats = {
+        "outOfStockPercentage90": [-1, 0, -1],  # NEW=0 -> tam 25p
+        "salesRankDrops90": 20,  # tavan -> tam 20p
+        "buyBoxIsAmazon": False,  # tam 15p
+        "totalOfferCount": 1,  # tam 15p
+    }
+    # monthlySold + trend YOK -> ikisi de notr (7.5 + 5 = 12.5), toplam 87.5
+    product_no_volume = {"stats": dict(base_stats)}
+    score_no_volume = keepa_check.compute_priority_score(product_no_volume)
+    check(
+        "Skor v2: monthlySold/trend eksikken notr fallback (87.5)",
+        score_no_volume == 87.5,
+        f"skor={score_no_volume}",
+    )
+
+    # monthlySold=50 (tavan) + trend=+100 (tavan) -> ikisi de tam puan, toplam 100
+    stats_max_volume = dict(base_stats, monthlySold=50, deltaPercent90_monthlySold=100)
+    score_max_volume = keepa_check.compute_priority_score({"stats": stats_max_volume})
+    check(
+        "Skor v2: monthlySold=50 + trend=+100 -> tavan (100.0)",
+        score_max_volume == 100.0,
+        f"skor={score_max_volume}",
+    )
+
+    # monthlySold=0 + trend=-100 (satis hacmi sifirlandi) -> ikisi de 0 puan
+    stats_zero_volume = dict(base_stats, monthlySold=0, deltaPercent90_monthlySold=-100)
+    score_zero_volume = keepa_check.compute_priority_score({"stats": stats_zero_volume})
+    check(
+        "Skor v2: monthlySold=0 + trend=-100 -> ikisi de 0 katki (75.0)",
+        score_zero_volume == 75.0,
+        f"skor={score_zero_volume}",
+    )
+
+    check(
+        "Skor v2: sonuc her zaman 0-100 araliginda",
+        0.0 <= score_no_volume <= 100.0 and 0.0 <= score_max_volume <= 100.0 and 0.0 <= score_zero_volume <= 100.0,
+    )
+
+
 def main():
     test_check_api_regression()
     test_license_guard()
     test_strategies_sentinel_guard()
+    test_fetch_product_retries_network_errors()
+    test_priority_score_v2_sales_volume()
 
     print(f"\n=== OZET: {len(PASS)} basarili, {len(FAIL)} basarisiz ===")
     if FAIL:

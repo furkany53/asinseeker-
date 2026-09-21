@@ -20,7 +20,7 @@ if getattr(sys, "frozen", False):
 else:
     BASE_DIR = Path(__file__).resolve().parent
 SCREENSHOT_DIR = BASE_DIR / "keepa_screenshots"
-KEEPA_URL = "https://keepa.com/#!product/5-{}"
+KEEPA_URL_TEMPLATE = "https://keepa.com/#!product/{domain}-{asin}"
 DEBUG_ADDRESS = os.getenv("CHROME_DEBUG_ADDRESS", "127.0.0.1:9222")
 
 # --- Keepa satıcı-sayısı grafiği kontrolü (Chrome DevTools Protocol) -------------
@@ -356,6 +356,10 @@ def keepa_check_detailed(
     require_year=True,
     check_gaps=True,
     check_dead_stock=False,
+    check_target_market=False,
+    target_market_domain=None,
+    api_key=None,
+    domain=None,
 ):
     """Keepa kontrolunu yapar ve status'un yaninda NEDENini de dondurur
     (batch/log ihtiyaci icin -- hangi ASIN neden silindi/yuklendi gorulebilsin diye).
@@ -364,14 +368,21 @@ def keepa_check_detailed(
     check_gaps: grafikteki veri kesintisi (moveTo kopmasi) delete sebebi sayilsin mi.
     check_dead_stock: cizgi grafigin sag ucuna (bugune) ulasmiyorsa (telef
         supheli -- satis/stoktan dusmus olabilir) delete sebebi sayilsin mi.
+    check_target_market: hedef pazarda (varsayilan Amazon.com) ASIN hic
+        bulunamiyorsa delete sebebi sayilsin mi -- bkz. check_exists_on_target_market.
+        Chrome'a ihtiyaci yok, ayri bir Keepa API cagrisi (api_key gerekir).
+    domain: KAYNAK pazar -- Keepa'nin urun sayfasi hangi ulke icin acilsin
+        (varsayilan: API_DOMAIN, yani 5/Japonya). Musteri farkli bir
+        pazardan kaynak buluyorsa GUI'den degistirilir.
     """
+    domain = domain or API_DOMAIN
     debug_address = debug_address or DEBUG_ADDRESS
     tab, session = open_cdp_session(debug_address)
     try:
         session.call("Page.enable")
         session.call("Runtime.enable")
         session.call("Page.addScriptToEvaluateOnNewDocument", {"source": CANVAS_HOOK_JS})
-        session.call("Page.navigate", {"url": KEEPA_URL.format(asin)})
+        session.call("Page.navigate", {"url": KEEPA_URL_TEMPLATE.format(domain=domain, asin=asin)})
 
         time.sleep(3)
         # Once grafik kontrollerinin (herhangi bir legendRange) sayfaya gelmesini
@@ -465,6 +476,22 @@ def keepa_check_detailed(
                 "gap_count": gap_count, "gaps_px": gaps_px, "dead_stock_suspected": dead_stock,
             }
 
+        if check_target_market:
+            key = api_key or _load_keepa_api_key()
+            kwargs = {}
+            if target_market_domain is not None:
+                kwargs["target_domain"] = target_market_domain
+            try:
+                exists = check_exists_on_target_market(asin, key, **kwargs)
+            except Exception as error:
+                raise RuntimeError(f"Hedef pazar kontrolu hatasi ({asin}): {type(error).__name__}: {error}") from error
+            if not exists:
+                _mark("_SIL_HEDEFPAZARDAYOK.png")
+                return {
+                    "asin": asin, "status": "delete", "reason": "hedef_pazarda_yok",
+                    "gap_count": gap_count, "gaps_px": gaps_px, "dead_stock_suspected": dead_stock,
+                }
+
         _mark("_YUKLE.png")
         return {
             "asin": asin, "status": "upload", "reason": "uygun",
@@ -507,7 +534,14 @@ def _fetch_product(asin, api_key, domain=API_DOMAIN, stop_event=None):
     request = urllib.request.Request(url)
     # Kota asiminda (429) cagirani hic ugrastirmadan burada bekleyip tekrar
     # deniyoruz -- keepa_finder.py'deki ayni desenle tutarli (artan bekleme,
-    # en fazla 10 deneme).
+    # en fazla 10 deneme). Ayrica DNS/baglanti hatalarini (URLError -- ornegin
+    # "getaddrinfo failed", "baglanti zorla kapatildi") da yeniden deniyoruz:
+    # CANLI dogrulandi (2026-09-16, full_pool_check.py'nin 108K'lik taramasinda),
+    # bunlar toplam "hata" satirlarinin %95'ini olusturuyordu -- genelde
+    # birkac saniyelik gecici ag/DNS dalgalanmasi, Keepa'nin kendisiyle ilgisi
+    # yok, ve eskiden HIC yeniden denenmeden direkt "hata" yazip vazgeciliyordu.
+    # 429'dan FARKLI olarak kisa bir bekleme yeterli (kota YENILENMESI degil,
+    # ag/DNS'in toparlanmasi bekleniyor).
     for attempt in range(10):
         if stop_event is not None and stop_event.is_set():
             raise RuntimeError(f"Durduruldu ({asin})")
@@ -522,6 +556,11 @@ def _fetch_product(asin, api_key, domain=API_DOMAIN, stop_event=None):
                 time.sleep(min(30 * (attempt + 1), 300))
                 continue
             raise
+        except urllib.error.URLError as error:
+            if attempt < 9:
+                time.sleep(min(3 * (attempt + 1), 30))
+                continue
+            raise RuntimeError(f"Ag/DNS hatasi devam ediyor ({asin}): {error}") from error
     raise RuntimeError(f"Kota asimi devam ediyor ({asin})")
 
 
@@ -533,10 +572,24 @@ def _fetch_product(asin, api_key, domain=API_DOMAIN, stop_event=None):
 # JP dropshipping gumruk riski listesi. Bu SADECE baslik metnine bakar --
 # Keepa alan adi/kategori ID'si GEREKTIRMEZ, bu yuzden dogrulanmamis bir
 # API alanina guvenmek zorunda kalmadan hemen kullanilabilir.
+#
+# JAPONCA ANAHTAR KELIMELER (2026-09-14, ikinci bir Gemini degerlendirmesinden
+# gelen GECERLI bir elestiri uzerine eklendi): Amazon.co.jp'deki urun
+# basliklari COGUNLUKLA Japonca (Katakana/Kanji) yaziliyor -- SADECE Ingilizce
+# anahtar kelimelerle arama yapmak, "バッテリー" (battery) veya "化粧品"
+# (kozmetik) gibi Japonca yazilmis riskli urunlerin filtreden TAMAMEN
+# KACMASINA neden oluyordu. Bu, projenin "verify before trusting" kuralina
+# gerek kalmadan dogrudan uygulanabilecek acik bir mantik hatasiydi (yeni bir
+# Keepa API alani gerektirmiyor, sadece regex'e Japonca kelime ekliyor).
 CUSTOMS_RISK_KEYWORDS_PATTERN = re.compile(
     r"(?i)(battery|lithium|powerbank|power bank|charger|bluetooth|wireless|wi-fi|wifi|"
     r"liquid|cream|oil|spray|lotion|gel|knife|blade|sword|leather|"
-    r"collagen|vitamin|supplement|protein)"
+    r"collagen|vitamin|supplement|protein|"
+    r"バッテリー|リチウム|充電器|モバイルバッテリー|ワイヤレス|ブルートゥース|無線|"
+    r"液体|クリーム|オイル|スプレー|ローション|ジェル|"
+    r"ナイフ|包丁|刃物|剣|レザー|皮革|"
+    r"コラーゲン|ビタミン|サプリメント|プロテイン|化粧品|"
+    r"水筒|食器)"
 )
 
 
@@ -555,15 +608,29 @@ def compute_priority_score(product):
     kontrolu icin ZATEN cekilmis olan AYNI /product yanitindaki "stats"
     alanindan hesaplanir -- EK TOKEN HARCAMAZ.
 
+    2026-09-18 GUNCELLEME (musteriden geldi): eskiden sadece "risk" odakliydi
+    (satistan kalkar mi, rekabet cok mu). Artik musterinin is modeli netlesti
+    -- JP fiyatini EasyCentral'in kendisi (US maliyeti + kendi markup kurali
+    ile) otomatik ayarliyor, biz kar MARJINI hesaplamiyoruz. Bizim isimiz:
+    "zaten kanitlanmis satisi olan VE rekabet edebilecegimiz" ASIN'leri
+    ONE cikarmak. Bu yuzden iki YENI bilesen eklendi (monthlySold /
+    deltaPercent90_monthlySold) -- Keepa'nin dogrudan sattigi urun adedi
+    tahmini, salesRankDrops'tan cok daha net bir "kanitlanmis talep" sinyali
+    (VARSA -- her urunde gelmiyor, o yuzden opsiyonel/notr-fallback'li).
+
     Bilesenler (toplam 100 puan):
-    - 35p Stok surekliligi: outOfStockPercentage90 ne kadar dusukse o kadar
+    - 25p Stok surekliligi: outOfStockPercentage90 ne kadar dusukse o kadar
       iyi -- "satistan kaldirilmis" riskinin en dogrudan Keepa sinyali.
-    - 25p Satis hizi: salesRankDrops90 ne kadar yuksekse o kadar cok
-      satildigi anlamina gelir (Sales Rank'in ne siklikta iyilestigi).
-    - 20p Amazon rekabeti: Buy Box'ta Amazon'un kendisi YOKSA tam puan --
+    - 20p Satis hizi (dolayli): salesRankDrops90 ne kadar yuksekse o kadar
+      cok satildigi anlamina gelir (Sales Rank'in ne siklikta iyilestigi).
+    - 15p Amazon rekabeti: Buy Box'ta Amazon'un kendisi YOKSA tam puan --
       Amazon kendisi satiyorsa 3. parti saticinin Buy Box kazanmasi zordur.
-    - 20p Rekabet yogunlugu: aktif satici sayisi (totalOfferCount) ne kadar
-      azsa o kadar iyi (marj/rekabet acisindan).
+    - 15p Rekabet yogunlugu: aktif satici sayisi (totalOfferCount) ne kadar
+      azsa o kadar iyi -- rekabet edebilme sansimiz o kadar yuksek.
+    - 15p YENI -- Kanitlanmis satis hacmi: Keepa'nin monthlySold tahmini
+      (dogrudan "bu urun ayda ~X adet satiyor" bilgisi) varsa kullanilir.
+    - 10p YENI -- Satis trendi: deltaPercent90_monthlySold (satis hacmi son
+      90 gunde artiyor mu azaliyor mu) -- artan trend = daha guvenli bahis.
 
     Veri eksikse o bilesen icin notr (yarim) puan verilir -- eksik veri
     ASIN'i cezalandirmaz ama avantaj da saglamaz.
@@ -579,29 +646,67 @@ def compute_priority_score(product):
     oos_list = stats.get("outOfStockPercentage90") or stats.get("outOfStockPercentage30")
     oos = oos_list[NEW_INDEX] if isinstance(oos_list, list) and len(oos_list) > NEW_INDEX else None
     if oos is not None and oos >= 0:
-        score += 35 * max(0.0, 1 - oos / 100.0)
-    else:
-        score += 35 * 0.5
-
-    drops = stats.get("salesRankDrops90")
-    if drops is not None and drops >= 0:
-        score += 25 * min(1.0, drops / 20.0)
+        score += 25 * max(0.0, 1 - oos / 100.0)
     else:
         score += 25 * 0.5
 
-    buy_box_is_amazon = stats.get("buyBoxIsAmazon")
-    if buy_box_is_amazon is False:
-        score += 20
-    elif buy_box_is_amazon is None:
-        score += 10
-
-    offer_count = stats.get("totalOfferCount")
-    if offer_count is not None and offer_count >= 1:
-        score += 20 * max(0.0, 1 - (offer_count - 1) / 9.0)
+    drops = stats.get("salesRankDrops90")
+    if drops is not None and drops >= 0:
+        score += 20 * min(1.0, drops / 20.0)
     else:
         score += 20 * 0.5
 
+    buy_box_is_amazon = stats.get("buyBoxIsAmazon")
+    if buy_box_is_amazon is False:
+        score += 15
+    elif buy_box_is_amazon is None:
+        score += 7.5
+
+    offer_count = stats.get("totalOfferCount")
+    if offer_count is not None and offer_count >= 1:
+        score += 15 * max(0.0, 1 - (offer_count - 1) / 9.0)
+    else:
+        score += 15 * 0.5
+
+    # monthlySold COGU URUNDE GELMIYOR (Keepa sadece yeterli veri toplanmis
+    # urunler icin dolduruyor) -- geldiginde en guclu sinyal, gelmediginde
+    # notre dusuyoruz (cezalandirmiyoruz). Ust sinir 50/ay -- dropshipping
+    # olcegi icin makul bir "cok iyi satiyor" esigi (canli veriyle
+    # kalibre edilmedi, ileride gercek dagilima gore ayarlanabilir).
+    monthly_sold = stats.get("monthlySold")
+    if monthly_sold is not None and monthly_sold >= 0:
+        score += 15 * min(1.0, monthly_sold / 50.0)
+    else:
+        score += 15 * 0.5
+
+    # -100 (satis hacmi sifirlandi) ile +100 (satis hacmi ikiye katlandi)
+    # arasi normalize edilir. Veri yoksa notr.
+    trend = stats.get("deltaPercent90_monthlySold")
+    if trend is not None:
+        score += 10 * max(0.0, min(1.0, (trend + 100) / 200.0))
+    else:
+        score += 10 * 0.5
+
     return round(score, 1)
+
+
+TARGET_MARKET_DOMAIN = 1  # amazon.com -- EasyCentral'in "MyHouse" magazasinin
+# capraz-listeledigi hedef pazar. Bu SABIT: musteri baska bir hedef magaza
+# (MyHouseAU/MX, Amazon.ca/sg) kullanirsa buraya bakip domain ID'sini
+# degistirmesi gerekir (canli dogrulanmis tek eslesme su an bu).
+
+
+def check_exists_on_target_market(asin, api_key, target_domain=TARGET_MARKET_DOMAIN, stop_event=None):
+    """EasyCentral'in "Satistan kaldirilmis" dedigi seyin JP kaynagiyla degil,
+    HEDEF pazarda (varsayilan: Amazon.com) bu ASIN'in hic bulunmamasiyla
+    ilgili oldugu -- 99 gercek EasyCentral ornegiyle %100 dogrulandi (bkz.
+    proje konusma gecmisi) -- kesfedildikten sonra eklendi. JP tarafinda
+    her sey saglikli gorunse bile (gecerli Buy Box, guncel veri) bu kontrol
+    olmadan EasyCentral'a gonderilen "temiz" ASIN'lerin cogu (%68) daha
+    ilk elemede bosa gidiyordu."""
+    data = _fetch_product(asin, api_key, domain=target_domain, stop_event=stop_event)
+    products = data.get("products") or []
+    return bool(products and products[0] is not None and products[0].get("title"))
 
 
 def keepa_check_detailed_api(
@@ -611,6 +716,8 @@ def keepa_check_detailed_api(
     check_gaps=True,
     check_dead_stock=False,
     check_customs_risk=False,
+    check_target_market=False,
+    target_market_domain=None,
     domain=API_DOMAIN,
     stop_event=None,
 ):
@@ -698,6 +805,24 @@ def keepa_check_detailed_api(
             "asin": asin, "status": "delete", "reason": "+".join(triggered),
             "gap_count": gap_count, "gaps_px": gaps_ts, "dead_stock_suspected": dead_stock, "score": score,
         }
+
+    # EN SONA konuldu (bilerek): bu ekstra bir Keepa API cagrisi (ekstra
+    # token) -- JP tarafinda zaten elenecek bir ASIN icin bu tokeni
+    # harcamamak icin sadece BURAYA kadar gelen (diger tum kontrolleri
+    # gecmis) adaylarda calistiriyoruz.
+    if check_target_market:
+        kwargs = {}
+        if target_market_domain is not None:
+            kwargs["target_domain"] = target_market_domain
+        try:
+            exists = check_exists_on_target_market(asin, api_key, stop_event=stop_event, **kwargs)
+        except Exception as error:
+            raise RuntimeError(f"Hedef pazar kontrolu hatasi ({asin}): {type(error).__name__}: {error}") from error
+        if not exists:
+            return {
+                "asin": asin, "status": "delete", "reason": "hedef_pazarda_yok",
+                "gap_count": gap_count, "gaps_px": gaps_ts, "dead_stock_suspected": dead_stock, "score": score,
+            }
 
     return {
         "asin": asin, "status": "upload", "reason": "uygun",

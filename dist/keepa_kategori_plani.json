@@ -1,0 +1,615 @@
+{
+  "fetched_at": 1789429430.5919132,
+  "plan": [
+    {
+      "catId": 2017304051,
+      "name": "車＆バイク",
+      "path": "車＆バイク",
+      "depth": 0,
+      "band": "B",
+      "sales_gte": 741116,
+      "sales_lte": 1852789,
+      "total_results": 44
+    },
+    {
+      "catId": 2277724051,
+      "name": "大型家電",
+      "path": "大型家電",
+      "depth": 0,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 391953,
+      "total_results": 234
+    },
+    {
+      "catId": 2229202051,
+      "name": "ファッション",
+      "path": "ファッション",
+      "depth": 0,
+      "band": "B",
+      "sales_gte": 756548,
+      "sales_lte": 1891368,
+      "total_results": 437
+    },
+    {
+      "catId": 2016929051,
+      "name": "DIY・工具・ガーデン",
+      "path": "DIY・工具・ガーデン",
+      "depth": 0,
+      "band": "B",
+      "sales_gte": 709266,
+      "sales_lte": 1773163,
+      "total_results": 21
+    },
+    {
+      "catId": 3828871,
+      "name": "ホーム＆キッチン",
+      "path": "ホーム＆キッチン",
+      "depth": 0,
+      "band": "B",
+      "sales_gte": 722659,
+      "sales_lte": 1806645,
+      "total_results": 25
+    },
+    {
+      "catId": 3839151,
+      "name": "カテゴリー別",
+      "path": "ホーム＆キッチン > カテゴリー別",
+      "depth": 1,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 708277,
+      "total_results": 75
+    },
+    {
+      "catId": 13299551,
+      "name": "カテゴリー別",
+      "path": "おもちゃ > カテゴリー別",
+      "depth": 1,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 699322,
+      "total_results": 20
+    },
+    {
+      "catId": 14315361,
+      "name": "カテゴリー別",
+      "path": "スポーツ＆アウトドア > カテゴリー別",
+      "depth": 1,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 717937,
+      "total_results": 21
+    },
+    {
+      "catId": 3210991,
+      "name": "カテゴリー別",
+      "path": "家電＆カメラ > カテゴリー別",
+      "depth": 1,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 667316,
+      "total_results": 107
+    },
+    {
+      "catId": 2016930051,
+      "name": "カテゴリー別",
+      "path": "DIY・工具・ガーデン > カテゴリー別",
+      "depth": 1,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 671306,
+      "total_results": 34
+    },
+    {
+      "catId": 2229203051,
+      "name": "カテゴリー別",
+      "path": "ファッション > カテゴリー別",
+      "depth": 1,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 749628,
+      "total_results": 25
+    },
+    {
+      "catId": 3445394051,
+      "name": "カテゴリー別",
+      "path": "産業・研究開発用品 > カテゴリー別",
+      "depth": 1,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 713447,
+      "total_results": 1665
+    },
+    {
+      "catId": 89083051,
+      "name": "事務用品",
+      "path": "文房具・オフィス用品 > カテゴリー別 > 事務用品",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 658061,
+      "total_results": 1256
+    },
+    {
+      "catId": 89087051,
+      "name": "学習用品",
+      "path": "文房具・オフィス用品 > カテゴリー別 > 学習用品",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 713446,
+      "total_results": 169
+    },
+    {
+      "catId": 89086051,
+      "name": "オフィス機器",
+      "path": "文房具・オフィス用品 > カテゴリー別 > オフィス機器",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 173366,
+      "total_results": 65
+    },
+    {
+      "catId": 89090051,
+      "name": "手帳・カレンダー",
+      "path": "文房具・オフィス用品 > カテゴリー別 > 手帳・カレンダー",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 485008,
+      "total_results": 130
+    },
+    {
+      "catId": 89085051,
+      "name": "ノート・メモ帳",
+      "path": "文房具・オフィス用品 > カテゴリー別 > ノート・メモ帳",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 581835,
+      "total_results": 408
+    },
+    {
+      "catId": 89089051,
+      "name": "封筒・はがき・レター用品",
+      "path": "文房具・オフィス用品 > カテゴリー別 > 封筒・はがき・レター用品",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 528599,
+      "total_results": 47
+    },
+    {
+      "catId": 89084051,
+      "name": "オフィス家具・収納",
+      "path": "文房具・オフィス用品 > カテゴリー別 > オフィス家具・収納",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 684878,
+      "total_results": 937
+    },
+    {
+      "catId": 89088051,
+      "name": "筆記具",
+      "path": "文房具・オフィス用品 > カテゴリー別 > 筆記具",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 545576,
+      "total_results": 917
+    },
+    {
+      "catId": 89091051,
+      "name": "ラッピング材",
+      "path": "文房具・オフィス用品 > カテゴリー別 > ラッピング材",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 584226,
+      "total_results": 59
+    },
+    {
+      "catId": 2045094051,
+      "name": "カーキャリア・ルーフボックス",
+      "path": "車＆バイク > カテゴリー別 > カーキャリア・ルーフボックス",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 713011,
+      "total_results": 352
+    },
+    {
+      "catId": 2045022051,
+      "name": "カーアクセサリ",
+      "path": "車＆バイク > カテゴリー別 > カーアクセサリ",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 591288,
+      "total_results": 799
+    },
+    {
+      "catId": 89102051,
+      "name": "プレゼン・会議・セミナー用品",
+      "path": "文房具・オフィス用品 > カテゴリー別 > プレゼン・会議・セミナー用品",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 522469,
+      "total_results": 92
+    },
+    {
+      "catId": 2045111051,
+      "name": "洗車・お手入れ用品",
+      "path": "車＆バイク > カテゴリー別 > 洗車・お手入れ用品",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 640831,
+      "total_results": 202
+    },
+    {
+      "catId": 89202051,
+      "name": "印鑑・スタンプ",
+      "path": "文房具・オフィス用品 > カテゴリー別 > 印鑑・スタンプ",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 427975,
+      "total_results": 41
+    },
+    {
+      "catId": 2045052051,
+      "name": "カーパーツ",
+      "path": "車＆バイク > カテゴリー別 > カーパーツ",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 422196,
+      "total_results": 1979
+    },
+    {
+      "catId": 2045198051,
+      "name": "バイクパーツ",
+      "path": "車＆バイク > カテゴリー別 > バイクパーツ",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 522628,
+      "total_results": 2593
+    },
+    {
+      "catId": 2045198051,
+      "name": "バイクパーツ",
+      "path": "車＆バイク > カテゴリー別 > バイクパーツ",
+      "depth": 2,
+      "band": "B",
+      "sales_gte": 522629,
+      "sales_lte": 1306570,
+      "total_results": 41
+    },
+    {
+      "catId": 2129857051,
+      "name": "アクセサリ",
+      "path": "楽器・音響機器 > カテゴリー別 > アクセサリ",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 72532,
+      "total_results": 134
+    },
+    {
+      "catId": 2045250051,
+      "name": "バイクタイヤ・ホイール",
+      "path": "車＆バイク > カテゴリー別 > バイクタイヤ・ホイール",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 389610,
+      "total_results": 358
+    },
+    {
+      "catId": 2045195051,
+      "name": "バイク工具・メンテナンス",
+      "path": "車＆バイク > カテゴリー別 > バイク工具・メンテナンス",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 331222,
+      "total_results": 87
+    },
+    {
+      "catId": 2045223051,
+      "name": "バイクアクセサリ",
+      "path": "車＆バイク > カテゴリー別 > バイクアクセサリ",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 552418,
+      "total_results": 235
+    },
+    {
+      "catId": 2045135051,
+      "name": "カータイヤ・ホイール",
+      "path": "車＆バイク > カテゴリー別 > カータイヤ・ホイール",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 537661,
+      "total_results": 709
+    },
+    {
+      "catId": 2045224051,
+      "name": "バイクバッグ・ケース",
+      "path": "車＆バイク > カテゴリー別 > バイクバッグ・ケース",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 700679,
+      "total_results": 552
+    },
+    {
+      "catId": 2045156051,
+      "name": "バイクウェア・プロテクション",
+      "path": "車＆バイク > カテゴリー別 > バイクウェア・プロテクション",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 741115,
+      "total_results": 1072
+    },
+    {
+      "catId": 2111178051,
+      "name": "カーナビ・カーエレクトロニクス",
+      "path": "車＆バイク > カテゴリー別 > カーナビ・カーエレクトロニクス",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 444356,
+      "total_results": 460
+    },
+    {
+      "catId": 2045145051,
+      "name": "ヘルメット",
+      "path": "車＆バイク > カテゴリー別 > ヘルメット",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 330301,
+      "total_results": 171
+    },
+    {
+      "catId": 2129913051,
+      "name": "ベース",
+      "path": "楽器・音響機器 > カテゴリー別 > ベース",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 36315,
+      "total_results": 117
+    },
+    {
+      "catId": 2130001051,
+      "name": "弦楽器",
+      "path": "楽器・音響機器 > カテゴリー別 > 弦楽器",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 36339,
+      "total_results": 139
+    },
+    {
+      "catId": 2129862051,
+      "name": "ギター",
+      "path": "楽器・音響機器 > カテゴリー別 > ギター",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 36348,
+      "total_results": 545
+    },
+    {
+      "catId": 2129862051,
+      "name": "ギター",
+      "path": "楽器・音響機器 > カテゴリー別 > ギター",
+      "depth": 2,
+      "band": "B",
+      "sales_gte": 36349,
+      "sales_lte": 90871,
+      "total_results": 41
+    },
+    {
+      "catId": 2130062051,
+      "name": "PA音響機器",
+      "path": "楽器・音響機器 > カテゴリー別 > PA音響機器",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 174420,
+      "total_results": 214
+    },
+    {
+      "catId": 2130074051,
+      "name": "マイク",
+      "path": "楽器・音響機器 > カテゴリー別 > マイク",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 36346,
+      "total_results": 120
+    },
+    {
+      "catId": 2130090051,
+      "name": "シンセサイザー・サンプラー",
+      "path": "楽器・音響機器 > カテゴリー別 > シンセサイザー・サンプラー",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 36253,
+      "total_results": 25
+    },
+    {
+      "catId": 2130026051,
+      "name": "管・吹奏楽器",
+      "path": "楽器・音響機器 > カテゴリー別 > 管・吹奏楽器",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 36348,
+      "total_results": 263
+    },
+    {
+      "catId": 2129946051,
+      "name": "ドラム・パーカッション",
+      "path": "楽器・音響機器 > カテゴリー別 > ドラム・パーカッション",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 139662,
+      "total_results": 655
+    },
+    {
+      "catId": 2130079051,
+      "name": "DTM・DAW",
+      "path": "楽器・音響機器 > カテゴリー別 > DTM・DAW",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 322017,
+      "total_results": 173
+    },
+    {
+      "catId": 2129987051,
+      "name": "ピアノ・キーボード",
+      "path": "楽器・音響機器 > カテゴリー別 > ピアノ・キーボード",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 36335,
+      "total_results": 77
+    },
+    {
+      "catId": 2151950051,
+      "name": "外付けドライブ・ストレージ",
+      "path": "パソコン・周辺機器 > カテゴリー別 > 外付けドライブ・ストレージ",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 113927,
+      "total_results": 204
+    },
+    {
+      "catId": 2151970051,
+      "name": "キーボード・マウス・入力機器",
+      "path": "パソコン・周辺機器 > カテゴリー別 > キーボード・マウス・入力機器",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 676930,
+      "total_results": 548
+    },
+    {
+      "catId": 2151982051,
+      "name": "ディスプレイ",
+      "path": "パソコン・周辺機器 > カテゴリー別 > ディスプレイ",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 543787,
+      "total_results": 387
+    },
+    {
+      "catId": 2151984051,
+      "name": "無線LAN・ネットワーク機器",
+      "path": "パソコン・周辺機器 > カテゴリー別 > 無線LAN・ネットワーク機器",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 127553,
+      "total_results": 145
+    },
+    {
+      "catId": 2151901051,
+      "name": "PCパーツ",
+      "path": "パソコン・周辺機器 > カテゴリー別 > PCパーツ",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 478792,
+      "total_results": 2104
+    },
+    {
+      "catId": 2153200051,
+      "name": "犬",
+      "path": "ペット用品 > カテゴリー別 > 犬",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 702229,
+      "total_results": 2045
+    },
+    {
+      "catId": 2153201051,
+      "name": "猫",
+      "path": "ペット用品 > カテゴリー別 > 猫",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 614426,
+      "total_results": 759
+    },
+    {
+      "catId": 2152007051,
+      "name": "スキャナ",
+      "path": "パソコン・周辺機器 > カテゴリー別 > スキャナ",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 411406,
+      "total_results": 34
+    },
+    {
+      "catId": 2152015051,
+      "name": "ウェブカメラ・IP電話機器",
+      "path": "パソコン・周辺機器 > カテゴリー別 > ウェブカメラ・IP電話機器",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 505235,
+      "total_results": 227
+    },
+    {
+      "catId": 2153202051,
+      "name": "小動物",
+      "path": "ペット用品 > カテゴリー別 > 小動物",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 719761,
+      "total_results": 153
+    },
+    {
+      "catId": 2152000051,
+      "name": "プリンタ",
+      "path": "パソコン・周辺機器 > カテゴリー別 > プリンタ",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 492883,
+      "total_results": 45
+    },
+    {
+      "catId": 2153203051,
+      "name": "鳥",
+      "path": "ペット用品 > カテゴリー別 > 鳥",
+      "depth": 2,
+      "band": "A",
+      "sales_gte": 1,
+      "sales_lte": 497195,
+      "total_results": 109
+    }
+  ]
+}

@@ -130,6 +130,62 @@ FIND_START_BUTTON_AND_SCROLL_EXPR = """
 })()
 """
 
+# Tarama formunda, "Taramayı Başlat"ın hemen ustunde iki secenek var:
+# "Arama Sonuçlarını Amazon Mağazama Otomatik Yükle" (EasyCentral'in kendi
+# ifadesiyle "Onerilmez") ve "...Yükleme Havuzuna Otomatik Yükle". Bunlardan
+# ilkini isaretlemek, tarama bitince UYGUN cikan urunleri INSAN MUDAHALESI
+# OLMADAN dogrudan magazaya gonderiyor -- yani "mağazaya gönder" adimini,
+# bizim disaridan buton tiklayip onay dialogunu atlatmaya calismamiz yerine,
+# EasyCentral'in KENDI resmi otomasyon ozelligiyle hallediyoruz. Bunu
+# ISARETLEMEK = magazaya otomatik gonderimi ONAYLAMAK demek oldugu icin
+# cagiran taraf BILEREK ve ACIKCA istemeli (varsayilan KAPALI).
+AUTO_UPLOAD_TO_STORE_CHECK_EXPR = """
+(function () {
+    // Gercek <input id="auto_upload"> display:none ile GORSEL OLARAK
+    // GIZLENMIS (canli dogrulandi: getBoundingClientRect 0x0) -- fare
+    // koordinatiyla (label'a bile) tiklamak Vue'nun v-model'ini TETIKLEMEDI
+    // (canli dogrulandi: checked hep false kaldi). Cozum: ASIN kutusuna
+    // metin yapistirirken kullandigimiz AYNI teknik -- native setter +
+    // 'click'/'change'/'input' event'lerini ELLE dispatch etmek. Bu, Vue'nun
+    // dinledigi event'leri tetikleyip iceride checked=true olarak isliyor
+    // (canli dogrulandi: hem input.checked hem sayfadaki gorsel isaret
+    // degisti).
+    var input = document.getElementById('auto_upload');
+    if (!input) return { found: false };
+    var proto = Object.getPrototypeOf(input);
+    var descriptor = Object.getOwnPropertyDescriptor(proto, 'checked');
+    var setter = descriptor ? descriptor.set : null;
+    if (setter) { setter.call(input, true); } else { input.checked = true; }
+    input.dispatchEvent(new Event('click', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return { found: true, checked: input.checked };
+})()
+"""
+
+
+# Stok Kodu alani (<input id="sku_code">, "JP-" onekinden SONRAKI 5
+# haneli kismi) -- her partiye HANGI arama yonteminden (S1-S5, kategori,
+# genel tarama) geldigini yansitan bir kod yazmak icin (musteriden geldi,
+# 2026-09-17: "yarin satis olan urunlere baktigimda SKU'su bize hangi
+# arama yontemiyle geldigini soyler, o yontemi kullaniriz"). Kod, cagiran
+# tarafin (keepa_gui.py veya build_asin_kaynak_yontemi.py'nin uretttigi
+# asin_kaynak_yontemi.csv) belirledigi bir string -- burada sadece
+# sayfaya YAZILIYOR, anlamini disaridaki kod belirliyor.
+SKU_CODE_SET_EXPR = """
+(function (code) {
+    var el = document.getElementById('sku_code');
+    if (!el) return { found: false };
+    var proto = Object.getPrototypeOf(el);
+    var descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+    var setter = descriptor ? descriptor.set : null;
+    if (setter) { setter.call(el, code); } else { el.value = code; }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    return { found: true, value: el.value };
+})(%(code)r)
+"""
+
 
 def _wait_for(session, expr, timeout=15, interval=0.3):
     deadline = time.time() + timeout
@@ -140,7 +196,7 @@ def _wait_for(session, expr, timeout=15, interval=0.3):
     return False
 
 
-def submit_and_start_scan(debug_address, asins, wait_for_store=10):
+def submit_and_start_scan(debug_address, asins, wait_for_store=10, auto_upload_to_store=False, sku_code=None):
     """Tek cagrida UCTAN UCA gonderim: sekmeyi ac/yeniden kullan -> sayfa
     hazir olana kadar bekle (screenshot degil, DOM durumunu POLLAYARAK --
     cok daha hizli) -> magaza secili mi kontrol et -> ASIN'leri yapistir ->
@@ -155,7 +211,18 @@ def submit_and_start_scan(debug_address, asins, wait_for_store=10):
     bos birakilirsa 'Lütfen mağaza seçimi yapınız' diye bloklayan bir
     tarayici dialogu cikiyor ve otomasyonu tamamen kilitliyordu) durur,
     kullaniciya birakir -- YANLIS magazaya gondermek, kota harcamaktan
-    cok daha pahaliya mal olur."""
+    cok daha pahaliya mal olur.
+
+    auto_upload_to_store=True: formdaki 'Arama Sonuçlarını Amazon Mağazama
+    Otomatik Yükle' kutusunu ISARETLER -- boylece tarama bitince UYGUN cikan
+    urunler INSAN MUDAHALESI OLMADAN dogrudan magazaya gider (bkz. pipeline'in
+    son asamasi). Bu, disaridan bir 'Mağazana Yükle' butonuna tiklayip
+    tarayicinin native onay dialogunu programatik olarak atlatmaya calismak
+    YERINE, EasyCentral'in KENDI resmi otomasyon ozelligini kullanir --
+    hicbir onay dialogunu bypass etmiyoruz, tek onay burada, taramayi
+    baslatirken bilerek verilmis oluyor. EasyCentral bu kutuyu 'Onerilmez'
+    olarak etiketliyor (insan gozden gecirmesini atladigi icin), o yuzden
+    varsayilan KAPALI -- cagiran taraf BILEREK acmali."""
     tab, session = open_cdp_session(debug_address, tab=_find_existing_tab(debug_address))
     try:
         session.call("Page.enable")
@@ -184,6 +251,24 @@ def submit_and_start_scan(debug_address, asins, wait_for_store=10):
         if not session.eval_json(PASTE_INTO_MARKED_EXPR % {"text": text}):
             return {"ok": False, "message": "Kutu bulundu ama metin yapistirilamadi."}
 
+        sku_set = None
+        if sku_code:
+            sku_result = session.eval_json(SKU_CODE_SET_EXPR % {"code": sku_code})
+            sku_set = bool(sku_result and sku_result.get("found"))
+
+        auto_upload_checked = False
+        if auto_upload_to_store:
+            cb_result = session.eval_json(AUTO_UPLOAD_TO_STORE_CHECK_EXPR)
+            auto_upload_checked = bool(cb_result and cb_result.get("checked"))
+            if not auto_upload_checked:
+                return {
+                    "ok": False,
+                    "message": (
+                        f"{len(asins)} ASIN yapistirildi ama 'Amazon Mağazama Otomatik Yükle' kutusu "
+                        "isaretlenemedi -- tarama BASLATILMADI (yanlislikla insan-onaysiz gonderim yapmamak icin)."
+                    ),
+                }
+
         pt = session.eval_json(FIND_START_BUTTON_AND_SCROLL_EXPR)
         if not pt:
             return {"ok": False, "message": f"{len(asins)} ASIN yapistirildi ama 'Taramayı Başlat' butonu bulunamadi."}
@@ -199,7 +284,16 @@ def submit_and_start_scan(debug_address, asins, wait_for_store=10):
                 "ok": False,
                 "message": f"{len(asins)} ASIN yapistirildi, butona tiklandi ama sayfa gecisi dogrulanamadi -- elle kontrol et.",
             }
-        return {"ok": True, "message": f"{len(asins)} ASIN gonderildi ve tarama baslatildi (URL: product-search/history)."}
+        upload_note = " Magazaya otomatik yukleme ISARETLENDI (uygun cikanlar tarama bitince otomatik gonderilecek)." if auto_upload_checked else ""
+        sku_note = ""
+        if sku_code:
+            sku_note = f" Stok Kodu '{sku_code}' olarak ayarlandi." if sku_set else f" UYARI: Stok Kodu alani bulunamadi, '{sku_code}' yazilamadi."
+        return {
+            "ok": True,
+            "message": f"{len(asins)} ASIN gonderildi ve tarama baslatildi (URL: product-search/history).{upload_note}{sku_note}",
+            "auto_upload_to_store": auto_upload_checked,
+            "sku_code_set": sku_set,
+        }
     finally:
         session.close()
 
@@ -218,14 +312,19 @@ def open_target(debug_address, stop_event=None):
         session.close()
 
 
-def paste_asins(debug_address, asins, stop_event=None):
+def paste_asins(debug_address, asins, stop_event=None, sku_code=None):
     """Aktif (ONCEDEN ACILMIS) EasyCentral sekmesinde ASIN kutusunu bulup
     listeyi yapistirmaya calisir -- open_target'in actigi AYNI sekmeyi
     kullanir, kendi basina yeni bir sekme ACMAZ (canli dogrulandi: her
     cagri kendi sekmesini acarsa, bir onceki cagrinin yukledigi sayfa
     'kaybolmus' gibi gorunuyordu). Basari/basarisizlik bilgisini dondurur;
     SON tiklama (taramayi baslat) kasitli olarak kullaniciya birakilir --
-    bkz. dosya basi not."""
+    bkz. dosya basi not.
+
+    sku_code verilirse, 'Stok Kodu' alanina (id=sku_code) da yazilir --
+    ASIN'lerin hangi arama yontemiyle bulundugunu (bkz.
+    build_asin_kaynak_yontemi.py) SKU uzerinden ileride izleyebilmek icin
+    (musteriden geldi, 2026-09-17)."""
     tab = _find_existing_tab(debug_address)
     if tab is None:
         return {
@@ -249,13 +348,23 @@ def paste_asins(debug_address, asins, stop_event=None):
         pasted = session.eval_json(PASTE_INTO_MARKED_EXPR % {"text": text})
         if not pasted:
             return {"ok": False, "message": "Kutu bulundu ama metin yapistirilamadi."}
+
+        sku_set = None
+        if sku_code:
+            sku_result = session.eval_json(SKU_CODE_SET_EXPR % {"code": sku_code})
+            sku_set = bool(sku_result and sku_result.get("found"))
+        sku_note = ""
+        if sku_code:
+            sku_note = f" Stok Kodu '{sku_code}' olarak ayarlandi." if sku_set else f" UYARI: Stok Kodu alani bulunamadi, '{sku_code}' yazilamadi."
+
         return {
             "ok": True,
             "message": (
-                f"{len(asins)} ASIN sayfaya yapistirildi. Listeyi gozden gecirip "
+                f"{len(asins)} ASIN sayfaya yapistirildi.{sku_note} Listeyi gozden gecirip "
                 "EasyCentral uzerinde 'Taramayi Baslat' tusuna KENDIN tikla "
                 "(kota harcayan adim oldugu icin bilerek otomatiklestirilmedi)."
             ),
+            "sku_code_set": sku_set,
         }
     finally:
         session.close()

@@ -13,6 +13,14 @@ try {
     Copy-Item -Path $sourceExe -Destination $installDir -Force
     $exePath = Join-Path $installDir "AsinSeeker.exe"
 
+    # Kategori bazli hazir tarama sablonlari (opsiyonel -- yoksa "ASIN Bul"
+    # sekmesindeki Hazir Strateji listesinde sadece S1-S5 gorunur, program
+    # yine calisir).
+    $sourceCategoryPlan = Join-Path $scriptDir "keepa_kategori_plani.json"
+    if (Test-Path $sourceCategoryPlan) {
+        Copy-Item -Path $sourceCategoryPlan -Destination $installDir -Force
+    }
+
     $WshShell = New-Object -ComObject WScript.Shell
 
     $startMenuDir = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs"

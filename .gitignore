@@ -49,3 +49,13 @@ keepa_recheck_progress.txt
 keepa_recheck_stdout.log
 tam_liste_log.txt
 easycentral_action_error.png
+
+# Toplu ASIN havuzu / satis dokumu ciktilari -- kisisel/is verisi, kaynak
+# kod degil, tekrar uretilebilir (bkz. keepa_sync/ ayri deposu).
+/ortak_asin_havuzu.txt
+/tum_asinler.txt
+dist/ortak_asin_havuzu.txt
+dist/tum_asinler.txt
+dist/sales_*.txt
+full_pool_check_run*.log
+*.png
