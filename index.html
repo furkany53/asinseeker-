@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Work+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
@@ -54,34 +54,17 @@
             </ul>
           </div>
 
-          <div class="hero-visual" aria-label="Web sitesi görseli">
-            <div class="dashboard-card">
-              <div class="topbar">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-              <div class="dashboard-body">
-                <div class="chart-bars">
-                  <span style="height: 35%"></span>
-                  <span style="height: 55%"></span>
-                  <span style="height: 80%"></span>
-                  <span style="height: 60%"></span>
-                  <span style="height: 100%"></span>
-                  <span style="height: 75%"></span>
-                </div>
-                <div class="metric-boxes">
-                  <div>
-                    <small>Gelir</small>
-                    <strong>+42%</strong>
-                  </div>
-                  <div>
-                    <small>Hit</small>
-                    <strong>18.4K</strong>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div class="hero-visual" aria-label="Müşteri görüşü">
+            <figure class="quote-card">
+              <blockquote>
+                Nova Studio ile iki haftada yayına aldığımız site, ilk ayında
+                başvuru sayımızı ikiye katladı.
+              </blockquote>
+              <figcaption>
+                <span class="quote-name">Elif Kaya</span>
+                <span class="quote-role">Kurucu Ortak, BrightLabs</span>
+              </figcaption>
+            </figure>
           </div>
         </div>
       </section>
@@ -95,17 +78,32 @@
 
           <div class="cards three-col">
             <article class="card">
-              <div class="icon">⚡</div>
+              <div class="icon icon-a" aria-hidden="true">
+                <svg viewBox="0 0 32 32" fill="none">
+                  <path d="M9 27 20 14h-7l2-9-11 13h7z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+                </svg>
+              </div>
               <h3>Hızlı Geliştirme</h3>
               <p>Modern teknolojiyle hızlı, güçlü ve mobil uyumlu web siteleri üretiriz.</p>
             </article>
             <article class="card">
-              <div class="icon">🎨</div>
+              <div class="icon icon-b" aria-hidden="true">
+                <svg viewBox="0 0 32 32" fill="none">
+                  <circle cx="16" cy="16" r="10" stroke="currentColor" stroke-width="2" />
+                  <path d="M16 16 21 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                  <circle cx="16" cy="16" r="1.6" fill="currentColor" />
+                </svg>
+              </div>
               <h3>Marka Tasarımı</h3>
               <p>İşinizin kimliğini yansıtan özgün tasarımlar ve kullanıcı odaklı arayüzler.</p>
             </article>
             <article class="card">
-              <div class="icon">📈</div>
+              <div class="icon icon-c" aria-hidden="true">
+                <svg viewBox="0 0 32 32" fill="none">
+                  <path d="M6 22 13 15l5 4 8-10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M22 9h5v5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </div>
               <h3>Dönüşüm Optimizasyonu</h3>
               <p>İçerik ve tasarım ile daha yüksek izlenme, daha fazla iletişim ve satış sağlar.</p>
             </article>
@@ -121,6 +119,7 @@
           </div>
 
           <div class="showcase">
+            <!-- TODO: gercek proje ekran goruntusu eklenince asagidaki placeholder kaldirilacak -->
             <div class="showcase-item">
               <div class="showcase-visual visual-one"></div>
               <div class="showcase-content">
@@ -207,6 +206,10 @@
       </div>
       <div class="container copyright">
         <p>© <span id="year"></span> Nova Studio. Tüm hakları saklıdır.</p>
+        <nav class="footer-legal" aria-label="Yasal bağlantılar">
+          <a href="#">Gizlilik Politikası</a>
+          <a href="#">Kullanım Şartları</a>
+        </nav>
       </div>
     </footer>
 
