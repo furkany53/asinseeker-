@@ -158,6 +158,31 @@ def extract_top_asin(driver, processed_asins):
     return None
 
 
+def accept_easycentral_confirmation(driver):
+    deadline = time.time() + 15
+    while time.time() < deadline:
+        try:
+            alert = driver.switch_to.alert
+            message = alert.text
+            alert.accept()
+            print(f"EasyCentral tarayıcı onayı kabul edildi: {message}")
+            return True
+        except Exception:
+            pass
+
+        buttons = driver.find_elements(
+            By.XPATH,
+            "//button[normalize-space()='Tamam' or normalize-space()='Onayla' or normalize-space()='Confirm']",
+        )
+        confirmation = next((button for button in buttons if button.is_displayed()), None)
+        if confirmation is not None:
+            driver.execute_script("arguments[0].click();", confirmation)
+            print("EasyCentral HTML onayı kabul edildi.")
+            return True
+        time.sleep(0.5)
+    return False
+
+
 def apply_action(driver, asin, action):
     if not AUTO_ACTIONS:
         print(f"{asin}: {action.upper()} önerildi; otomatik EasyCentral işlemi kapalı.")
@@ -210,19 +235,8 @@ def apply_action(driver, asin, action):
     driver.execute_script("arguments[0].click();", action_option)
     print(f"[PANEL] {label} seçildi; onay bekleniyor...")
 
-    try:
-        WebDriverWait(driver, 5).until(EC.alert_is_present())
-        alert = driver.switch_to.alert
-        print(f"EasyCentral onayı: {alert.text}")
-        alert.accept()
-    except Exception:
-        confirmation_candidates = driver.find_elements(
-            By.XPATH,
-            "//button[contains(., 'Tamam') or contains(., 'Sil') or contains(., 'Onayla') or contains(., 'Confirm') or contains(., 'Delete')]",
-        )
-        confirmation = next((item for item in confirmation_candidates if item.is_displayed()), None)
-        if confirmation is not None:
-            driver.execute_script("arguments[0].click();", confirmation)
+    if not accept_easycentral_confirmation(driver):
+        raise RuntimeError(f"{asin}: {label} onay penceresi 15 saniyede bulunamadı.")
 
     if action == "delete":
         row_xpath = f"//table/tbody/tr[contains(., '{asin}')][1]"

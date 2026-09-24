@@ -493,8 +493,13 @@ def keepa_check_detailed(
                 }
 
         _mark("_YUKLE.png")
+        # ABD (hedef pazar) kontrolunden gecerek upload olduysa reason'a
+        # isaretliyoruz -- boylece bu ASIN'in bir daha check_us_existence.py
+        # gibi ayri bir script ile TEKRAR kontrol edilmesine gerek kalmiyor
+        # (sonuclar.csv'de bu bilgi kalici olarak isaretlenmis oluyor).
+        reason = "uygun+abd_dogrulandi" if check_target_market else "uygun"
         return {
-            "asin": asin, "status": "upload", "reason": "uygun",
+            "asin": asin, "status": "upload", "reason": reason,
             "gap_count": gap_count, "gaps_px": gaps_px, "dead_stock_suspected": dead_stock,
         }
     finally:
@@ -824,8 +829,13 @@ def keepa_check_detailed_api(
                 "gap_count": gap_count, "gaps_px": gaps_ts, "dead_stock_suspected": dead_stock, "score": score,
             }
 
+    # ABD (hedef pazar) kontrolunden gecerek upload olduysa reason'a
+    # isaretliyoruz -- boylece bu ASIN'in bir daha check_us_existence.py
+    # gibi ayri bir script ile TEKRAR kontrol edilmesine gerek kalmiyor
+    # (sonuclar.csv'de bu bilgi kalici olarak isaretlenmis oluyor).
+    reason = "uygun+abd_dogrulandi" if check_target_market else "uygun"
     return {
-        "asin": asin, "status": "upload", "reason": "uygun",
+        "asin": asin, "status": "upload", "reason": reason,
         "gap_count": gap_count, "gaps_px": gaps_ts, "dead_stock_suspected": dead_stock, "score": score,
     }
 

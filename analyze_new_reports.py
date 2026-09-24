@@ -38,8 +38,12 @@ from pathlib import Path
 # bandinda kaliyor -- yani "isinma" degil, gercek/kalici sorun).
 DEAD_STOCK_CUTOFF = "2026-08-01"
 
-BUSINESS_REPORT = Path(r"C:\Users\onury\Downloads\data (1).csv")
-INVENTORY = Path(r"C:\Users\onury\Downloads\inventory-list.csv")
+BUSINESS_REPORT = Path(r"C:\Users\onury\Downloads\data (2).csv")
+INVENTORY = Path(r"C:\Users\onury\Downloads\inventory-list (1).csv")
+# 2026-09-22: Amazon'un HAM Business Report exportu (Mobile/Browser session
+# kirilimi, Refund Rate, Units Shipped gibi data (2).csv'de olmayan ek
+# kolonlar icin) -- "CHILD ASIN" degil "(Child) ASIN" kullaniyor, BOM'lu.
+RAW_BUSINESS_REPORT = Path(r"C:\Users\onury\Downloads\BusinessReport-9-22-26.csv")
 OUT_DIR = Path(__file__).resolve().parent / "keepa_full_kontrol"
 
 
@@ -140,7 +144,19 @@ with BUSINESS_REPORT.open(encoding="utf-8-sig", newline="") as f:
         if asin:
             biz_rows[asin] = row
 
-print(f"\ndata (1).csv (Business Report): {len(biz_rows)} benzersiz CHILD ASIN, {len(biz_fields)} kolon")
+print(f"\ndata (2).csv (Business Report): {len(biz_rows)} benzersiz CHILD ASIN, {len(biz_fields)} kolon")
+
+# ------------------------------------------------- ham business report (ek detay)
+raw_biz_rows = {}
+with RAW_BUSINESS_REPORT.open(encoding="utf-8-sig", newline="") as f:
+    reader = csv.DictReader(f)
+    raw_fields = reader.fieldnames
+    for row in reader:
+        asin = (row.get("(Child) ASIN") or "").strip()
+        if asin:
+            raw_biz_rows[asin] = row
+
+print(f"BusinessReport-9-22-26.csv (ham): {len(raw_biz_rows)} benzersiz ASIN, {len(raw_fields)} kolon")
 
 # --------------------------------------------------- iki raporun kesisimi
 ortak = set(inv_rows) & set(biz_rows)
@@ -152,29 +168,44 @@ for asin in ortak:
     sessions = to_float(biz.get("SESSION"))
     units = to_float(biz.get("UNITS ORDERED"))
     if sessions >= 20 and units == 0:
-        trafik_var_siparis_yok.append((asin, sessions, to_float(biz.get("BUYBOX %"))))
+        raw = raw_biz_rows.get(asin, {})
+        mobile_sess = to_float(raw.get("Sessions - Mobile App"))
+        browser_sess = to_float(raw.get("Sessions - Browser"))
+        refund_rate = raw.get("Refund Rate", "")
+        units_shipped = to_float(raw.get("Units Shipped"))
+        trafik_var_siparis_yok.append((
+            asin, sessions, to_float(biz.get("BUYBOX %")),
+            mobile_sess, browser_sess, refund_rate, units_shipped,
+        ))
 
 trafik_var_siparis_yok.sort(key=lambda x: -x[1])
 print(f"\n=== Trafik var (>=20 session) ama SIFIR siparis: {len(trafik_var_siparis_yok)} ASIN ===")
 print("(bunlar buybox/fiyat sorunu olabilecek, kaybedilen trafik adaylari)")
-for asin, sessions, buybox_pct in trafik_var_siparis_yok[:15]:
+for asin, sessions, buybox_pct, mobile_sess, browser_sess, _refund, _shipped in trafik_var_siparis_yok[:15]:
     inv = inv_rows.get(asin, {})
     rek = inv.get(REKABET_KEY, "?")
     bb = inv.get(BUYBOX_KEY, "?")
     rakip = inv.get("RAKIP-SATICI-SAYISI", "?")
-    print(f"  {asin}: {sessions:.0f} session, buybox%={buybox_pct:.1f}, REKABET={rek}, BUYBOX={bb}, rakip_sayisi={rakip}")
+    print(
+        f"  {asin}: {sessions:.0f} session (mobile={mobile_sess:.0f}/browser={browser_sess:.0f}), "
+        f"buybox%={buybox_pct:.1f}, REKABET={rek}, BUYBOX={bb}, rakip_sayisi={rakip}"
+    )
 
 # --------------------------------------------------- ciktilari yaz
 OUT_DIR.mkdir(exist_ok=True)
 out_path = OUT_DIR / "trafik_var_siparis_yok.csv"
 with out_path.open("w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
-    writer.writerow(["asin", "sessions", "buybox_pct", "rekabet_durumu", "buybox_durumu", "rakip_sayisi"])
-    for asin, sessions, buybox_pct in trafik_var_siparis_yok:
+    writer.writerow([
+        "asin", "sessions", "buybox_pct", "rekabet_durumu", "buybox_durumu", "rakip_sayisi",
+        "mobile_sessions", "browser_sessions", "refund_rate", "units_shipped",
+    ])
+    for asin, sessions, buybox_pct, mobile_sess, browser_sess, refund_rate, units_shipped in trafik_var_siparis_yok:
         inv = inv_rows.get(asin, {})
         writer.writerow([
             asin, sessions, buybox_pct,
             inv.get(REKABET_KEY, ""), inv.get(BUYBOX_KEY, ""), inv.get("RAKIP-SATICI-SAYISI", ""),
+            mobile_sess, browser_sess, refund_rate, units_shipped,
         ])
 print(f"\nYazildi: {out_path} ({len(trafik_var_siparis_yok)} satir)")
 

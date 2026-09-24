@@ -3,613 +3,735 @@
   "plan": [
     {
       "catId": 2017304051,
-      "name": "車＆バイク",
-      "path": "車＆バイク",
+      "name": "Araba & Motosiklet",
+      "path": "Araba & Motosiklet",
       "depth": 0,
       "band": "B",
       "sales_gte": 741116,
       "sales_lte": 1852789,
-      "total_results": 44
+      "total_results": 44,
+      "name_jp": "車＆バイク",
+      "path_jp": "車＆バイク"
     },
     {
       "catId": 2277724051,
-      "name": "大型家電",
-      "path": "大型家電",
+      "name": "Büyük Ev Aletleri",
+      "path": "Büyük Ev Aletleri",
       "depth": 0,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 391953,
-      "total_results": 234
+      "total_results": 234,
+      "name_jp": "大型家電",
+      "path_jp": "大型家電"
     },
     {
       "catId": 2229202051,
-      "name": "ファッション",
-      "path": "ファッション",
+      "name": "Moda",
+      "path": "Moda",
       "depth": 0,
       "band": "B",
       "sales_gte": 756548,
       "sales_lte": 1891368,
-      "total_results": 437
+      "total_results": 437,
+      "name_jp": "ファッション",
+      "path_jp": "ファッション"
     },
     {
       "catId": 2016929051,
-      "name": "DIY・工具・ガーデン",
-      "path": "DIY・工具・ガーデン",
+      "name": "DIY, Alet, Bahçe",
+      "path": "DIY, Alet, Bahçe",
       "depth": 0,
       "band": "B",
       "sales_gte": 709266,
       "sales_lte": 1773163,
-      "total_results": 21
+      "total_results": 21,
+      "name_jp": "DIY・工具・ガーデン",
+      "path_jp": "DIY・工具・ガーデン"
     },
     {
       "catId": 3828871,
-      "name": "ホーム＆キッチン",
-      "path": "ホーム＆キッチン",
+      "name": "Ev & Mutfak",
+      "path": "Ev & Mutfak",
       "depth": 0,
       "band": "B",
       "sales_gte": 722659,
       "sales_lte": 1806645,
-      "total_results": 25
+      "total_results": 25,
+      "name_jp": "ホーム＆キッチン",
+      "path_jp": "ホーム＆キッチン"
     },
     {
       "catId": 3839151,
-      "name": "カテゴリー別",
-      "path": "ホーム＆キッチン > カテゴリー別",
+      "name": "Kategoriye Göre",
+      "path": "Ev & Mutfak > Kategoriye Göre",
       "depth": 1,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 708277,
-      "total_results": 75
+      "total_results": 75,
+      "name_jp": "カテゴリー別",
+      "path_jp": "ホーム＆キッチン > カテゴリー別"
     },
     {
       "catId": 13299551,
-      "name": "カテゴリー別",
-      "path": "おもちゃ > カテゴリー別",
+      "name": "Kategoriye Göre",
+      "path": "Oyuncak > Kategoriye Göre",
       "depth": 1,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 699322,
-      "total_results": 20
+      "total_results": 20,
+      "name_jp": "カテゴリー別",
+      "path_jp": "おもちゃ > カテゴリー別"
     },
     {
       "catId": 14315361,
-      "name": "カテゴリー別",
-      "path": "スポーツ＆アウトドア > カテゴリー別",
+      "name": "Kategoriye Göre",
+      "path": "Spor & Outdoor > Kategoriye Göre",
       "depth": 1,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 717937,
-      "total_results": 21
+      "total_results": 21,
+      "name_jp": "カテゴリー別",
+      "path_jp": "スポーツ＆アウトドア > カテゴリー別"
     },
     {
       "catId": 3210991,
-      "name": "カテゴリー別",
-      "path": "家電＆カメラ > カテゴリー別",
+      "name": "Kategoriye Göre",
+      "path": "Elektronik & Kamera > Kategoriye Göre",
       "depth": 1,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 667316,
-      "total_results": 107
+      "total_results": 107,
+      "name_jp": "カテゴリー別",
+      "path_jp": "家電＆カメラ > カテゴリー別"
     },
     {
       "catId": 2016930051,
-      "name": "カテゴリー別",
-      "path": "DIY・工具・ガーデン > カテゴリー別",
+      "name": "Kategoriye Göre",
+      "path": "DIY, Alet, Bahçe > Kategoriye Göre",
       "depth": 1,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 671306,
-      "total_results": 34
+      "total_results": 34,
+      "name_jp": "カテゴリー別",
+      "path_jp": "DIY・工具・ガーデン > カテゴリー別"
     },
     {
       "catId": 2229203051,
-      "name": "カテゴリー別",
-      "path": "ファッション > カテゴリー別",
+      "name": "Kategoriye Göre",
+      "path": "Moda > Kategoriye Göre",
       "depth": 1,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 749628,
-      "total_results": 25
+      "total_results": 25,
+      "name_jp": "カテゴリー別",
+      "path_jp": "ファッション > カテゴリー別"
     },
     {
       "catId": 3445394051,
-      "name": "カテゴリー別",
-      "path": "産業・研究開発用品 > カテゴリー別",
+      "name": "Kategoriye Göre",
+      "path": "Endüstriyel, Ar-Ge Malzemeleri > Kategoriye Göre",
       "depth": 1,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 713447,
-      "total_results": 1665
+      "total_results": 1665,
+      "name_jp": "カテゴリー別",
+      "path_jp": "産業・研究開発用品 > カテゴリー別"
     },
     {
       "catId": 89083051,
-      "name": "事務用品",
-      "path": "文房具・オフィス用品 > カテゴリー別 > 事務用品",
+      "name": "Ofis/Kırtasiye Malzemeleri",
+      "path": "Kırtasiye, Ofis Malzemeleri > Kategoriye Göre > Ofis/Kırtasiye Malzemeleri",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 658061,
-      "total_results": 1256
+      "total_results": 1256,
+      "name_jp": "事務用品",
+      "path_jp": "文房具・オフィス用品 > カテゴリー別 > 事務用品"
     },
     {
       "catId": 89087051,
-      "name": "学習用品",
-      "path": "文房具・オフィス用品 > カテゴリー別 > 学習用品",
+      "name": "Eğitim Malzemeleri",
+      "path": "Kırtasiye, Ofis Malzemeleri > Kategoriye Göre > Eğitim Malzemeleri",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 713446,
-      "total_results": 169
+      "total_results": 169,
+      "name_jp": "学習用品",
+      "path_jp": "文房具・オフィス用品 > カテゴリー別 > 学習用品"
     },
     {
       "catId": 89086051,
-      "name": "オフィス機器",
-      "path": "文房具・オフィス用品 > カテゴリー別 > オフィス機器",
+      "name": "Ofis Ekipmanları",
+      "path": "Kırtasiye, Ofis Malzemeleri > Kategoriye Göre > Ofis Ekipmanları",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 173366,
-      "total_results": 65
+      "total_results": 65,
+      "name_jp": "オフィス機器",
+      "path_jp": "文房具・オフィス用品 > カテゴリー別 > オフィス機器"
     },
     {
       "catId": 89090051,
-      "name": "手帳・カレンダー",
-      "path": "文房具・オフィス用品 > カテゴリー別 > 手帳・カレンダー",
+      "name": "Ajanda, Takvim",
+      "path": "Kırtasiye, Ofis Malzemeleri > Kategoriye Göre > Ajanda, Takvim",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 485008,
-      "total_results": 130
+      "total_results": 130,
+      "name_jp": "手帳・カレンダー",
+      "path_jp": "文房具・オフィス用品 > カテゴリー別 > 手帳・カレンダー"
     },
     {
       "catId": 89085051,
-      "name": "ノート・メモ帳",
-      "path": "文房具・オフィス用品 > カテゴリー別 > ノート・メモ帳",
+      "name": "Defter, Not Defteri",
+      "path": "Kırtasiye, Ofis Malzemeleri > Kategoriye Göre > Defter, Not Defteri",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 581835,
-      "total_results": 408
+      "total_results": 408,
+      "name_jp": "ノート・メモ帳",
+      "path_jp": "文房具・オフィス用品 > カテゴリー別 > ノート・メモ帳"
     },
     {
       "catId": 89089051,
-      "name": "封筒・はがき・レター用品",
-      "path": "文房具・オフィス用品 > カテゴリー別 > 封筒・はがき・レター用品",
+      "name": "Zarf, Kartpostal, Mektup Malzemeleri",
+      "path": "Kırtasiye, Ofis Malzemeleri > Kategoriye Göre > Zarf, Kartpostal, Mektup Malzemeleri",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 528599,
-      "total_results": 47
+      "total_results": 47,
+      "name_jp": "封筒・はがき・レター用品",
+      "path_jp": "文房具・オフィス用品 > カテゴリー別 > 封筒・はがき・レター用品"
     },
     {
       "catId": 89084051,
-      "name": "オフィス家具・収納",
-      "path": "文房具・オフィス用品 > カテゴリー別 > オフィス家具・収納",
+      "name": "Ofis Mobilyası, Depolama",
+      "path": "Kırtasiye, Ofis Malzemeleri > Kategoriye Göre > Ofis Mobilyası, Depolama",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 684878,
-      "total_results": 937
+      "total_results": 937,
+      "name_jp": "オフィス家具・収納",
+      "path_jp": "文房具・オフィス用品 > カテゴリー別 > オフィス家具・収納"
     },
     {
       "catId": 89088051,
-      "name": "筆記具",
-      "path": "文房具・オフィス用品 > カテゴリー別 > 筆記具",
+      "name": "Yazı Gereçleri",
+      "path": "Kırtasiye, Ofis Malzemeleri > Kategoriye Göre > Yazı Gereçleri",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 545576,
-      "total_results": 917
+      "total_results": 917,
+      "name_jp": "筆記具",
+      "path_jp": "文房具・オフィス用品 > カテゴリー別 > 筆記具"
     },
     {
       "catId": 89091051,
-      "name": "ラッピング材",
-      "path": "文房具・オフィス用品 > カテゴリー別 > ラッピング材",
+      "name": "Ambalaj Malzemesi",
+      "path": "Kırtasiye, Ofis Malzemeleri > Kategoriye Göre > Ambalaj Malzemesi",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 584226,
-      "total_results": 59
+      "total_results": 59,
+      "name_jp": "ラッピング材",
+      "path_jp": "文房具・オフィス用品 > カテゴリー別 > ラッピング材"
     },
     {
       "catId": 2045094051,
-      "name": "カーキャリア・ルーフボックス",
-      "path": "車＆バイク > カテゴリー別 > カーキャリア・ルーフボックス",
+      "name": "Araç Taşıyıcı, Tavan Kutusu",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Araç Taşıyıcı, Tavan Kutusu",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 713011,
-      "total_results": 352
+      "total_results": 352,
+      "name_jp": "カーキャリア・ルーフボックス",
+      "path_jp": "車＆バイク > カテゴリー別 > カーキャリア・ルーフボックス"
     },
     {
       "catId": 2045022051,
-      "name": "カーアクセサリ",
-      "path": "車＆バイク > カテゴリー別 > カーアクセサリ",
+      "name": "Araç Aksesuarları",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Araç Aksesuarları",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 591288,
-      "total_results": 799
+      "total_results": 799,
+      "name_jp": "カーアクセサリ",
+      "path_jp": "車＆バイク > カテゴリー別 > カーアクセサリ"
     },
     {
       "catId": 89102051,
-      "name": "プレゼン・会議・セミナー用品",
-      "path": "文房具・オフィス用品 > カテゴリー別 > プレゼン・会議・セミナー用品",
+      "name": "Sunum, Toplantı, Seminer Malzemeleri",
+      "path": "Kırtasiye, Ofis Malzemeleri > Kategoriye Göre > Sunum, Toplantı, Seminer Malzemeleri",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 522469,
-      "total_results": 92
+      "total_results": 92,
+      "name_jp": "プレゼン・会議・セミナー用品",
+      "path_jp": "文房具・オフィス用品 > カテゴリー別 > プレゼン・会議・セミナー用品"
     },
     {
       "catId": 2045111051,
-      "name": "洗車・お手入れ用品",
-      "path": "車＆バイク > カテゴリー別 > 洗車・お手入れ用品",
+      "name": "Araç Yıkama, Bakım Malzemeleri",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Araç Yıkama, Bakım Malzemeleri",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 640831,
-      "total_results": 202
+      "total_results": 202,
+      "name_jp": "洗車・お手入れ用品",
+      "path_jp": "車＆バイク > カテゴリー別 > 洗車・お手入れ用品"
     },
     {
       "catId": 89202051,
-      "name": "印鑑・スタンプ",
-      "path": "文房具・オフィス用品 > カテゴリー別 > 印鑑・スタンプ",
+      "name": "Mühür, Damga",
+      "path": "Kırtasiye, Ofis Malzemeleri > Kategoriye Göre > Mühür, Damga",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 427975,
-      "total_results": 41
+      "total_results": 41,
+      "name_jp": "印鑑・スタンプ",
+      "path_jp": "文房具・オフィス用品 > カテゴリー別 > 印鑑・スタンプ"
     },
     {
       "catId": 2045052051,
-      "name": "カーパーツ",
-      "path": "車＆バイク > カテゴリー別 > カーパーツ",
+      "name": "Araç Parçaları",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Araç Parçaları",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 422196,
-      "total_results": 1979
+      "total_results": 1979,
+      "name_jp": "カーパーツ",
+      "path_jp": "車＆バイク > カテゴリー別 > カーパーツ"
     },
     {
       "catId": 2045198051,
-      "name": "バイクパーツ",
-      "path": "車＆バイク > カテゴリー別 > バイクパーツ",
+      "name": "Motosiklet Parçaları",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Motosiklet Parçaları",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 522628,
-      "total_results": 2593
+      "total_results": 2593,
+      "name_jp": "バイクパーツ",
+      "path_jp": "車＆バイク > カテゴリー別 > バイクパーツ"
     },
     {
       "catId": 2045198051,
-      "name": "バイクパーツ",
-      "path": "車＆バイク > カテゴリー別 > バイクパーツ",
+      "name": "Motosiklet Parçaları",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Motosiklet Parçaları",
       "depth": 2,
       "band": "B",
       "sales_gte": 522629,
       "sales_lte": 1306570,
-      "total_results": 41
+      "total_results": 41,
+      "name_jp": "バイクパーツ",
+      "path_jp": "車＆バイク > カテゴリー別 > バイクパーツ"
     },
     {
       "catId": 2129857051,
-      "name": "アクセサリ",
-      "path": "楽器・音響機器 > カテゴリー別 > アクセサリ",
+      "name": "Aksesuar",
+      "path": "Müzik Aletleri, Ses Ekipmanları > Kategoriye Göre > Aksesuar",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 72532,
-      "total_results": 134
+      "total_results": 134,
+      "name_jp": "アクセサリ",
+      "path_jp": "楽器・音響機器 > カテゴリー別 > アクセサリ"
     },
     {
       "catId": 2045250051,
-      "name": "バイクタイヤ・ホイール",
-      "path": "車＆バイク > カテゴリー別 > バイクタイヤ・ホイール",
+      "name": "Motosiklet Lastiği, Jant",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Motosiklet Lastiği, Jant",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 389610,
-      "total_results": 358
+      "total_results": 358,
+      "name_jp": "バイクタイヤ・ホイール",
+      "path_jp": "車＆バイク > カテゴリー別 > バイクタイヤ・ホイール"
     },
     {
       "catId": 2045195051,
-      "name": "バイク工具・メンテナンス",
-      "path": "車＆バイク > カテゴリー別 > バイク工具・メンテナンス",
+      "name": "Motosiklet Aletleri, Bakım",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Motosiklet Aletleri, Bakım",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 331222,
-      "total_results": 87
+      "total_results": 87,
+      "name_jp": "バイク工具・メンテナンス",
+      "path_jp": "車＆バイク > カテゴリー別 > バイク工具・メンテナンス"
     },
     {
       "catId": 2045223051,
-      "name": "バイクアクセサリ",
-      "path": "車＆バイク > カテゴリー別 > バイクアクセサリ",
+      "name": "Motosiklet Aksesuarları",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Motosiklet Aksesuarları",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 552418,
-      "total_results": 235
+      "total_results": 235,
+      "name_jp": "バイクアクセサリ",
+      "path_jp": "車＆バイク > カテゴリー別 > バイクアクセサリ"
     },
     {
       "catId": 2045135051,
-      "name": "カータイヤ・ホイール",
-      "path": "車＆バイク > カテゴリー別 > カータイヤ・ホイール",
+      "name": "Araç Lastiği, Jant",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Araç Lastiği, Jant",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 537661,
-      "total_results": 709
+      "total_results": 709,
+      "name_jp": "カータイヤ・ホイール",
+      "path_jp": "車＆バイク > カテゴリー別 > カータイヤ・ホイール"
     },
     {
       "catId": 2045224051,
-      "name": "バイクバッグ・ケース",
-      "path": "車＆バイク > カテゴリー別 > バイクバッグ・ケース",
+      "name": "Motosiklet Çantası, Kutusu",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Motosiklet Çantası, Kutusu",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 700679,
-      "total_results": 552
+      "total_results": 552,
+      "name_jp": "バイクバッグ・ケース",
+      "path_jp": "車＆バイク > カテゴリー別 > バイクバッグ・ケース"
     },
     {
       "catId": 2045156051,
-      "name": "バイクウェア・プロテクション",
-      "path": "車＆バイク > カテゴリー別 > バイクウェア・プロテクション",
+      "name": "Motosiklet Kıyafeti, Koruma",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Motosiklet Kıyafeti, Koruma",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 741115,
-      "total_results": 1072
+      "total_results": 1072,
+      "name_jp": "バイクウェア・プロテクション",
+      "path_jp": "車＆バイク > カテゴリー別 > バイクウェア・プロテクション"
     },
     {
       "catId": 2111178051,
-      "name": "カーナビ・カーエレクトロニクス",
-      "path": "車＆バイク > カテゴリー別 > カーナビ・カーエレクトロニクス",
+      "name": "Araç Navigasyonu, Araç Elektroniği",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Araç Navigasyonu, Araç Elektroniği",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 444356,
-      "total_results": 460
+      "total_results": 460,
+      "name_jp": "カーナビ・カーエレクトロニクス",
+      "path_jp": "車＆バイク > カテゴリー別 > カーナビ・カーエレクトロニクス"
     },
     {
       "catId": 2045145051,
-      "name": "ヘルメット",
-      "path": "車＆バイク > カテゴリー別 > ヘルメット",
+      "name": "Kask",
+      "path": "Araba & Motosiklet > Kategoriye Göre > Kask",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 330301,
-      "total_results": 171
+      "total_results": 171,
+      "name_jp": "ヘルメット",
+      "path_jp": "車＆バイク > カテゴリー別 > ヘルメット"
     },
     {
       "catId": 2129913051,
-      "name": "ベース",
-      "path": "楽器・音響機器 > カテゴリー別 > ベース",
+      "name": "Bas Gitar",
+      "path": "Müzik Aletleri, Ses Ekipmanları > Kategoriye Göre > Bas Gitar",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 36315,
-      "total_results": 117
+      "total_results": 117,
+      "name_jp": "ベース",
+      "path_jp": "楽器・音響機器 > カテゴリー別 > ベース"
     },
     {
       "catId": 2130001051,
-      "name": "弦楽器",
-      "path": "楽器・音響機器 > カテゴリー別 > 弦楽器",
+      "name": "Telli Çalgılar",
+      "path": "Müzik Aletleri, Ses Ekipmanları > Kategoriye Göre > Telli Çalgılar",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 36339,
-      "total_results": 139
+      "total_results": 139,
+      "name_jp": "弦楽器",
+      "path_jp": "楽器・音響機器 > カテゴリー別 > 弦楽器"
     },
     {
       "catId": 2129862051,
-      "name": "ギター",
-      "path": "楽器・音響機器 > カテゴリー別 > ギター",
+      "name": "Gitar",
+      "path": "Müzik Aletleri, Ses Ekipmanları > Kategoriye Göre > Gitar",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 36348,
-      "total_results": 545
+      "total_results": 545,
+      "name_jp": "ギター",
+      "path_jp": "楽器・音響機器 > カテゴリー別 > ギター"
     },
     {
       "catId": 2129862051,
-      "name": "ギター",
-      "path": "楽器・音響機器 > カテゴリー別 > ギター",
+      "name": "Gitar",
+      "path": "Müzik Aletleri, Ses Ekipmanları > Kategoriye Göre > Gitar",
       "depth": 2,
       "band": "B",
       "sales_gte": 36349,
       "sales_lte": 90871,
-      "total_results": 41
+      "total_results": 41,
+      "name_jp": "ギター",
+      "path_jp": "楽器・音響機器 > カテゴリー別 > ギター"
     },
     {
       "catId": 2130062051,
-      "name": "PA音響機器",
-      "path": "楽器・音響機器 > カテゴリー別 > PA音響機器",
+      "name": "PA Ses Sistemi Ekipmanları",
+      "path": "Müzik Aletleri, Ses Ekipmanları > Kategoriye Göre > PA Ses Sistemi Ekipmanları",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 174420,
-      "total_results": 214
+      "total_results": 214,
+      "name_jp": "PA音響機器",
+      "path_jp": "楽器・音響機器 > カテゴリー別 > PA音響機器"
     },
     {
       "catId": 2130074051,
-      "name": "マイク",
-      "path": "楽器・音響機器 > カテゴリー別 > マイク",
+      "name": "Mikrofon",
+      "path": "Müzik Aletleri, Ses Ekipmanları > Kategoriye Göre > Mikrofon",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 36346,
-      "total_results": 120
+      "total_results": 120,
+      "name_jp": "マイク",
+      "path_jp": "楽器・音響機器 > カテゴリー別 > マイク"
     },
     {
       "catId": 2130090051,
-      "name": "シンセサイザー・サンプラー",
-      "path": "楽器・音響機器 > カテゴリー別 > シンセサイザー・サンプラー",
+      "name": "Synthesizer, Sampler",
+      "path": "Müzik Aletleri, Ses Ekipmanları > Kategoriye Göre > Synthesizer, Sampler",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 36253,
-      "total_results": 25
+      "total_results": 25,
+      "name_jp": "シンセサイザー・サンプラー",
+      "path_jp": "楽器・音響機器 > カテゴリー別 > シンセサイザー・サンプラー"
     },
     {
       "catId": 2130026051,
-      "name": "管・吹奏楽器",
-      "path": "楽器・音響機器 > カテゴリー別 > 管・吹奏楽器",
+      "name": "Nefesli Çalgılar",
+      "path": "Müzik Aletleri, Ses Ekipmanları > Kategoriye Göre > Nefesli Çalgılar",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 36348,
-      "total_results": 263
+      "total_results": 263,
+      "name_jp": "管・吹奏楽器",
+      "path_jp": "楽器・音響機器 > カテゴリー別 > 管・吹奏楽器"
     },
     {
       "catId": 2129946051,
-      "name": "ドラム・パーカッション",
-      "path": "楽器・音響機器 > カテゴリー別 > ドラム・パーカッション",
+      "name": "Davul, Perküsyon",
+      "path": "Müzik Aletleri, Ses Ekipmanları > Kategoriye Göre > Davul, Perküsyon",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 139662,
-      "total_results": 655
+      "total_results": 655,
+      "name_jp": "ドラム・パーカッション",
+      "path_jp": "楽器・音響機器 > カテゴリー別 > ドラム・パーカッション"
     },
     {
       "catId": 2130079051,
-      "name": "DTM・DAW",
-      "path": "楽器・音響機器 > カテゴリー別 > DTM・DAW",
+      "name": "Müzik Prodüksiyon (DTM/DAW)",
+      "path": "Müzik Aletleri, Ses Ekipmanları > Kategoriye Göre > Müzik Prodüksiyon (DTM/DAW)",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 322017,
-      "total_results": 173
+      "total_results": 173,
+      "name_jp": "DTM・DAW",
+      "path_jp": "楽器・音響機器 > カテゴリー別 > DTM・DAW"
     },
     {
       "catId": 2129987051,
-      "name": "ピアノ・キーボード",
-      "path": "楽器・音響機器 > カテゴリー別 > ピアノ・キーボード",
+      "name": "Piyano, Klavye",
+      "path": "Müzik Aletleri, Ses Ekipmanları > Kategoriye Göre > Piyano, Klavye",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 36335,
-      "total_results": 77
+      "total_results": 77,
+      "name_jp": "ピアノ・キーボード",
+      "path_jp": "楽器・音響機器 > カテゴリー別 > ピアノ・キーボード"
     },
     {
       "catId": 2151950051,
-      "name": "外付けドライブ・ストレージ",
-      "path": "パソコン・周辺機器 > カテゴリー別 > 外付けドライブ・ストレージ",
+      "name": "Harici Sürücü, Depolama",
+      "path": "Bilgisayar, Çevre Birimleri > Kategoriye Göre > Harici Sürücü, Depolama",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 113927,
-      "total_results": 204
+      "total_results": 204,
+      "name_jp": "外付けドライブ・ストレージ",
+      "path_jp": "パソコン・周辺機器 > カテゴリー別 > 外付けドライブ・ストレージ"
     },
     {
       "catId": 2151970051,
-      "name": "キーボード・マウス・入力機器",
-      "path": "パソコン・周辺機器 > カテゴリー別 > キーボード・マウス・入力機器",
+      "name": "Klavye, Fare, Giriş Cihazları",
+      "path": "Bilgisayar, Çevre Birimleri > Kategoriye Göre > Klavye, Fare, Giriş Cihazları",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 676930,
-      "total_results": 548
+      "total_results": 548,
+      "name_jp": "キーボード・マウス・入力機器",
+      "path_jp": "パソコン・周辺機器 > カテゴリー別 > キーボード・マウス・入力機器"
     },
     {
       "catId": 2151982051,
-      "name": "ディスプレイ",
-      "path": "パソコン・周辺機器 > カテゴリー別 > ディスプレイ",
+      "name": "Ekran/Monitör",
+      "path": "Bilgisayar, Çevre Birimleri > Kategoriye Göre > Ekran/Monitör",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 543787,
-      "total_results": 387
+      "total_results": 387,
+      "name_jp": "ディスプレイ",
+      "path_jp": "パソコン・周辺機器 > カテゴリー別 > ディスプレイ"
     },
     {
       "catId": 2151984051,
-      "name": "無線LAN・ネットワーク機器",
-      "path": "パソコン・周辺機器 > カテゴリー別 > 無線LAN・ネットワーク機器",
+      "name": "Kablosuz Ağ, Network Cihazları",
+      "path": "Bilgisayar, Çevre Birimleri > Kategoriye Göre > Kablosuz Ağ, Network Cihazları",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 127553,
-      "total_results": 145
+      "total_results": 145,
+      "name_jp": "無線LAN・ネットワーク機器",
+      "path_jp": "パソコン・周辺機器 > カテゴリー別 > 無線LAN・ネットワーク機器"
     },
     {
       "catId": 2151901051,
-      "name": "PCパーツ",
-      "path": "パソコン・周辺機器 > カテゴリー別 > PCパーツ",
+      "name": "PC Parçaları",
+      "path": "Bilgisayar, Çevre Birimleri > Kategoriye Göre > PC Parçaları",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 478792,
-      "total_results": 2104
+      "total_results": 2104,
+      "name_jp": "PCパーツ",
+      "path_jp": "パソコン・周辺機器 > カテゴリー別 > PCパーツ"
     },
     {
       "catId": 2153200051,
-      "name": "犬",
-      "path": "ペット用品 > カテゴリー別 > 犬",
+      "name": "Köpek",
+      "path": "Evcil Hayvan Malzemeleri > Kategoriye Göre > Köpek",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 702229,
-      "total_results": 2045
+      "total_results": 2045,
+      "name_jp": "犬",
+      "path_jp": "ペット用品 > カテゴリー別 > 犬"
     },
     {
       "catId": 2153201051,
-      "name": "猫",
-      "path": "ペット用品 > カテゴリー別 > 猫",
+      "name": "Kedi",
+      "path": "Evcil Hayvan Malzemeleri > Kategoriye Göre > Kedi",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 614426,
-      "total_results": 759
+      "total_results": 759,
+      "name_jp": "猫",
+      "path_jp": "ペット用品 > カテゴリー別 > 猫"
     },
     {
       "catId": 2152007051,
-      "name": "スキャナ",
-      "path": "パソコン・周辺機器 > カテゴリー別 > スキャナ",
+      "name": "Tarayıcı",
+      "path": "Bilgisayar, Çevre Birimleri > Kategoriye Göre > Tarayıcı",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 411406,
-      "total_results": 34
+      "total_results": 34,
+      "name_jp": "スキャナ",
+      "path_jp": "パソコン・周辺機器 > カテゴリー別 > スキャナ"
     },
     {
       "catId": 2152015051,
-      "name": "ウェブカメラ・IP電話機器",
-      "path": "パソコン・周辺機器 > カテゴリー別 > ウェブカメラ・IP電話機器",
+      "name": "Web Kamerası, IP Telefon Cihazları",
+      "path": "Bilgisayar, Çevre Birimleri > Kategoriye Göre > Web Kamerası, IP Telefon Cihazları",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 505235,
-      "total_results": 227
+      "total_results": 227,
+      "name_jp": "ウェブカメラ・IP電話機器",
+      "path_jp": "パソコン・周辺機器 > カテゴリー別 > ウェブカメラ・IP電話機器"
     },
     {
       "catId": 2153202051,
-      "name": "小動物",
-      "path": "ペット用品 > カテゴリー別 > 小動物",
+      "name": "Küçük Hayvanlar",
+      "path": "Evcil Hayvan Malzemeleri > Kategoriye Göre > Küçük Hayvanlar",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 719761,
-      "total_results": 153
+      "total_results": 153,
+      "name_jp": "小動物",
+      "path_jp": "ペット用品 > カテゴリー別 > 小動物"
     },
     {
       "catId": 2152000051,
-      "name": "プリンタ",
-      "path": "パソコン・周辺機器 > カテゴリー別 > プリンタ",
+      "name": "Yazıcı",
+      "path": "Bilgisayar, Çevre Birimleri > Kategoriye Göre > Yazıcı",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 492883,
-      "total_results": 45
+      "total_results": 45,
+      "name_jp": "プリンタ",
+      "path_jp": "パソコン・周辺機器 > カテゴリー別 > プリンタ"
     },
     {
       "catId": 2153203051,
-      "name": "鳥",
-      "path": "ペット用品 > カテゴリー別 > 鳥",
+      "name": "Kuş",
+      "path": "Evcil Hayvan Malzemeleri > Kategoriye Göre > Kuş",
       "depth": 2,
       "band": "A",
       "sales_gte": 1,
       "sales_lte": 497195,
-      "total_results": 109
+      "total_results": 109,
+      "name_jp": "鳥",
+      "path_jp": "ペット用品 > カテゴリー別 > 鳥"
     }
   ]
 }

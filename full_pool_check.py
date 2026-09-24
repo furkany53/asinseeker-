@@ -82,6 +82,15 @@ EXCLUDE_ASIN_FILES = [
     BASE_DIR / "keepa_sync" / "easycentral_batch_1.txt",
     BASE_DIR / "keepa_sync" / "easycentral_batch_2.txt",
     BASE_DIR / "keepa_sync" / "easycentral_batch_3.txt",
+    BASE_DIR / "keepa_sync" / "easycentral_batch_4.txt",
+    # 2026-09-24: Keepa tarafinda "uygun" cikip EasyCentral'a gonderilse
+    # BILE, Amazon'da (musteri hesabina ozel) marka onayi/gating yuzunden
+    # kalici olarak inaktif dusup silinen ASIN'ler -- bkz.
+    # check_inactive_reasons.py/inaktif_kategorize*.csv. Bu, Keepa'nin HIC
+    # BILEMEYECEGI bir kisit (hesaba/markaya ozel) oldugu icin ayri bir
+    # dosyada tutuluyor -- Keepa tarafinda "uygun" kalmaya devam ederler
+    # (o dogru), sadece bir DAHA gonderilmezler.
+    BASE_DIR / "keepa_full_kontrol" / "bilinen_engelli_asinler.txt",
 ]
 # run_web_prefilter.py'nin (Keepa web sitesindeki Product Viewer'i, API
 # token'larindan AYRI bir kotayla kullanarak) onceden hesapladigi "1 yillik

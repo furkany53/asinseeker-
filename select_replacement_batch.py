@@ -12,6 +12,13 @@ DOGRULANDI (2026-09-19): Keepa JP taramasindan gelen ASIN'ler ile EasyCentral
 envanterindeki (inventory-list.csv) ASIN'ler AYNI ASIN uzayinda -- 2.352
 dogrudan ortusme bulundu. Dogrudan ASIN eslestirmesi guvenle yapilabiliyor.
 
+2026-09-22 GUNCELLEME: check_us_existence.py canli dogruladi -- EasyCentral'in
+"satistan kaldirilmis" diye eledigi ASIN'lerin JP tarafiyla ilgisi yok, sadece
+hedef pazarda (Amazon.com) o ASIN HIC YOK (99/99 ornekte dogrulandi, genel
+oran ~%44 var/%56 yok). Bu yuzden ABD'de var oldugu KANITLANMAMIS hicbir ASIN
+artik bu batch'e giremez -- EasyCentral'in kisitli tarama kotasini bosa
+harcamamak icin.
+
 Adimlar:
 1. sonuclar.csv'den status=upload olan TUM ASIN'leri skoruyla birlikte al.
 2. asin_kaynak_yontemi.csv'den SADECE rakip Turk satici kodlu (HAYAI, SABAN,
@@ -19,8 +26,9 @@ Adimlar:
    HATIC) ASIN'lere filtrele.
 3. Zaten gonderilmis (easycentral_batch_1/2/3.txt) VE zaten magazada canli
    olan (inventory-list.csv) ASIN'leri CIKAR.
-4. Skora gore (en yuksekten) sirala.
-5. dead_stock_confirmed.csv'deki zayif ASIN sayisi kadar (N) -- ya da rakip
+4. us_onaylanmis.txt'de OLMAYAN (ABD'de varligi kanitlanmamis) ASIN'leri CIKAR.
+5. Skora gore (en yuksekten) sirala.
+6. dead_stock_confirmed.csv'deki zayif ASIN sayisi kadar (N) -- ya da rakip
    havuzunda o kadar yoksa mevcut TUMUNU -- "yeni batch" olarak yaz.
 
 Cikti: keepa_full_kontrol/yer_degistirme_yeni_batch.txt
@@ -33,7 +41,8 @@ BASE_DIR = Path(__file__).resolve().parent
 SONUCLAR = BASE_DIR / "keepa_full_kontrol" / "sonuclar.csv"
 KAYNAK_YONTEMI = BASE_DIR / "keepa_full_kontrol" / "asin_kaynak_yontemi.csv"
 DEAD_STOCK = BASE_DIR / "keepa_full_kontrol" / "dead_stock_confirmed.csv"
-INVENTORY = Path(r"C:\Users\onury\Downloads\inventory-list.csv")
+INVENTORY = Path(r"C:\Users\onury\Downloads\inventory-list (1).csv")
+US_ONAYLANMIS = BASE_DIR / "keepa_full_kontrol" / "us_onaylanmis.txt"
 SENT_BATCHES = [
     BASE_DIR / "keepa_sync" / "easycentral_batch_1.txt",
     BASE_DIR / "keepa_sync" / "easycentral_batch_2.txt",
@@ -48,6 +57,9 @@ RAKIP_KODLARI = {
 
 # ---------------------------------------------------------- 1) skorlar
 asin_score = {}
+asin_abd_dogrulandi = set()  # reason'inda "abd_dogrulandi" gecen ASIN'ler --
+# full_pool_check.py'nin kendi check_target_market kontrolunden zaten
+# gecmis, check_us_existence.py ile TEKRAR kontrol etmeye gerek yok.
 with SONUCLAR.open(encoding="utf-8") as f:
     for row in csv.DictReader(f):
         if row["status"] != "upload":
@@ -57,9 +69,15 @@ with SONUCLAR.open(encoding="utf-8") as f:
             score = float(raw)
         except (TypeError, ValueError):
             continue
-        asin_score[row["asin"].strip()] = score  # son gorulen kazanir
+        asin = row["asin"].strip()
+        asin_score[asin] = score  # son gorulen kazanir
+        if "abd_dogrulandi" in (row.get("reason") or ""):
+            asin_abd_dogrulandi.add(asin)
+        else:
+            asin_abd_dogrulandi.discard(asin)
 
 print(f"sonuclar.csv -- skorlu 'upload' ASIN sayisi (tekil): {len(asin_score)}")
+print(f"Bunlardan full_pool_check.py'nin kendi ABD kontrolunden ZATEN gecmis (reason=uygun+abd_dogrulandi): {len(asin_abd_dogrulandi)}")
 
 # ---------------------------------------------------------- 2) rakip kaynakli filtre
 asin_kod = {}
@@ -92,6 +110,30 @@ print(f"Su an magazada canli ASIN sayisi: {len(live_in_store)}")
 excluded = already_sent | live_in_store
 candidates = {asin: score for asin, score in rakip_scored.items() if asin not in excluded}
 print(f"\nRakip kaynakli, TEMIZ, HENUZ gonderilmemis aday sayisi: {len(candidates)}")
+
+# ------------------------------------------- 3b) ABD'de var oldugu kanitlanmis
+# Iki kaynaktan birlesir: (a) check_us_existence.py'nin backfill kütüphanesi
+# (eski, check_target_market'ten ONCE "upload" olmus ASIN'ler icin), (b)
+# full_pool_check.py'nin kendi ANLIK check_target_market kontrolunden gecmis
+# ASIN'ler (reason=uygun+abd_dogrulandi) -- bunlar icin check_us_existence.py
+# TEKRAR calismasin diye ayri kontrol edilmiyor.
+us_confirmed = set(asin_abd_dogrulandi)
+if US_ONAYLANMIS.exists():
+    us_confirmed.update(
+        l.strip() for l in US_ONAYLANMIS.read_text(encoding="utf-8").splitlines() if l.strip()
+    )
+print(
+    f"check_us_existence.py -- ABD'de (Amazon.com) var oldugu kanitlanmis ASIN sayisi: {len(us_confirmed)} "
+    f"({len(asin_abd_dogrulandi)} tanesi full_pool_check.py'nin kendi kontrolunden geldi)"
+)
+
+before_us_filter = len(candidates)
+candidates = {asin: score for asin, score in candidates.items() if asin in us_confirmed}
+print(
+    f"ABD-varlik filtresinden sonra kalan aday sayisi: {len(candidates)} "
+    f"(once: {before_us_filter} -- henuz kontrol edilmemis olanlar da elendi, "
+    f"check_us_existence.py ilerledikce bu sayi artacak)"
+)
 
 # ---------------------------------------------------------- 4) zayif sayisi
 with DEAD_STOCK.open(encoding="utf-8") as f:

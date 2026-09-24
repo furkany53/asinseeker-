@@ -13,6 +13,8 @@ keepa_screenshots/
 tarama_*_temiz.txt
 tarama_*.log
 keepa_api_key.txt
+amazon_sp_api_credentials.json
+easycentral_credentials.json
 keepa_arama_*.txt
 keepa_arama_*/
 node_modules/

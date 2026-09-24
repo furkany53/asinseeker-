@@ -94,6 +94,9 @@ import keepa_finder as kf  # noqa: E402
 import license_guard  # noqa: E402
 import scan_stats  # noqa: E402
 from easycentral_target import TARGETS as UPLOAD_TARGETS  # noqa: E402
+import amazon_sp_api  # noqa: E402
+import amazon_sp_api_settings  # noqa: E402
+import easycentral_inventory  # noqa: E402
 
 ES_CONTINUOUS = 0x80000000
 ES_SYSTEM_REQUIRED = 0x00000001
@@ -394,6 +397,18 @@ class KeepaApp:
         self._build_ui(check_tab)
         self._build_send_tab(send_tab)
         self._build_rakip_tab(rakip_tab)
+
+        # "Envanter Çek" sekmesi -- Amazon SP-API kismi HER musteride
+        # gorunur (musteri kendi kimlik bilgilerini Ayarlar menusunden girer,
+        # bkz. amazon_sp_api_settings.py/show_amazon_sp_api_settings_dialog).
+        # EasyCentral kismi ise BILEREK sadece gelistirme modunda (frozen
+        # olmayan) ekleniyor -- o kimlik bilgisi (easycentral_credentials.json)
+        # hala kisisel/ic kullanim icin, musteriye giden .exe'ye bundle
+        # edilmiyor (bkz. _build_envanter_tab icindeki ayrim).
+        envanter_tab = ttk.Frame(self.notebook)
+        self.notebook.add(envanter_tab, text="Envanter Çek")
+        self._build_envanter_tab(envanter_tab)
+
         self._refresh_strategy_options()
 
         # Sekmeler farkli genislikte icerik tasiyabiliyor (orn. Temizle
@@ -515,22 +530,11 @@ class KeepaApp:
         settings_menu = tk.Menu(menubar, tearoff=0)
         settings_menu.add_command(label="Keepa Hesabı...", command=self.show_account_dialog)
         settings_menu.add_command(label="Keepa API Ayarları...", command=self.show_api_settings_dialog)
+        settings_menu.add_command(label="Amazon SP-API Ayarları...", command=self.show_amazon_sp_api_settings_dialog)
         settings_menu.add_command(label="Lisans Anahtarı Gir...", command=self.show_license_dialog)
         settings_menu.add_separator()
         settings_menu.add_command(label="ASIN Bul - Kayıt Klasörü...", command=self.show_finder_output_dir_dialog)
         menubar.add_cascade(label="Ayarlar", menu=settings_menu)
-
-        self.view_mode_var = tk.StringVar(value="normal")
-        view_menu = tk.Menu(menubar, tearoff=0)
-        view_menu.add_radiobutton(
-            label="Normal Görünüm", variable=self.view_mode_var, value="normal",
-            command=self.apply_view_mode,
-        )
-        view_menu.add_radiobutton(
-            label="Küçük Ekran (Light)", variable=self.view_mode_var, value="compact",
-            command=self.apply_view_mode,
-        )
-        menubar.add_cascade(label="Görünüm", menu=view_menu)
 
         help_menu = tk.Menu(menubar, tearoff=0)
         help_menu.add_command(label="Bu Program Ne İşe Yarar?", command=self.show_help)
@@ -2003,6 +2007,172 @@ class KeepaApp:
 
         threading.Thread(target=do_submit, daemon=True).start()
 
+    # -------------------------------------------------------------- envanter
+    BUSINESS_REPORT_RANGE_PRESETS = {
+        "Son 7 gün": 7,
+        "Son 30 gün": 30,
+        "Son 60 gün": 60,
+        "Son 90 gün": 90,
+        "Özel Tarih Aralığı": None,
+    }
+
+    def _build_envanter_tab(self, parent):
+        """Amazon SP-API (Business Report + gercek stok/envanter) ve
+        EasyCentral (inventory-list.csv) envanter kaynaklarini otomatik
+        cekmek icin -- bkz. amazon_sp_api.py / easycentral_inventory.py basi.
+        Amazon kismi HER musteride goruniyor (kendi kimlik bilgilerini
+        Ayarlar > Amazon SP-API Ayarlari'ndan girer); EasyCentral kismi
+        SADECE gelistirme modunda ekleniyor (bkz. __init__)."""
+        frm = ttk.Frame(parent, padding=10)
+        frm.grid(row=0, column=0, sticky="nsew")
+        row = 0
+
+        ttk.Label(
+            frm,
+            text=(
+                "Amazon mağazandan Business Report ve güncel stok/envanter verisini otomatik çeker. "
+                "Önce Ayarlar menüsünden 'Amazon SP-API Ayarları...' ile kendi mağazanın kimlik "
+                "bilgilerini girmen gerekir."
+            ),
+            foreground="#555", wraplength=760, justify="left",
+        ).grid(row=row, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        row += 1
+
+        amazon_box = ttk.LabelFrame(frm, text="Amazon SP-API")
+        amazon_box.grid(row=row, column=0, sticky="new", padx=(0, 8))
+        row += 1
+
+        ttk.Button(
+            amazon_box, text="Kimlik Bilgilerini Kaydet...",
+            command=self.show_amazon_sp_api_settings_dialog,
+        ).pack(anchor="w", padx=6, pady=(6, 8))
+
+        range_row = ttk.Frame(amazon_box)
+        range_row.pack(anchor="w", padx=6, pady=(0, 3), fill="x")
+        ttk.Label(range_row, text="Business Report Tarih Aralığı:").pack(side="left")
+        self.business_range_var = tk.StringVar(value="Son 30 gün")
+        range_combo = ttk.Combobox(
+            range_row, textvariable=self.business_range_var,
+            values=list(self.BUSINESS_REPORT_RANGE_PRESETS.keys()),
+            state="readonly", width=20,
+        )
+        range_combo.pack(side="left", padx=(6, 0))
+
+        custom_range_row = ttk.Frame(amazon_box)
+        ttk.Label(custom_range_row, text="Başlangıç (YYYY-AA-GG):").pack(side="left")
+        self.business_start_date_var = tk.StringVar(value="")
+        ttk.Entry(custom_range_row, textvariable=self.business_start_date_var, width=12).pack(side="left", padx=(4, 10))
+        ttk.Label(custom_range_row, text="Bitiş (YYYY-AA-GG):").pack(side="left")
+        self.business_end_date_var = tk.StringVar(value="")
+        ttk.Entry(custom_range_row, textvariable=self.business_end_date_var, width=12).pack(side="left", padx=(4, 0))
+
+        def _toggle_custom_range(_event=None):
+            if self.business_range_var.get() == "Özel Tarih Aralığı":
+                custom_range_row.pack(anchor="w", padx=6, pady=(3, 6), fill="x")
+            else:
+                custom_range_row.pack_forget()
+
+        range_combo.bind("<<ComboboxSelected>>", _toggle_custom_range)
+
+        ttk.Button(
+            amazon_box, text="Business Report Çek",
+            command=self.envanter_fetch_amazon_business,
+        ).pack(anchor="w", padx=6, pady=(6, 3))
+        ttk.Button(
+            amazon_box, text="Envanter (Stok) Raporu Çek",
+            command=self.envanter_fetch_amazon_inventory,
+        ).pack(anchor="w", padx=6, pady=(0, 6))
+
+        # EasyCentral kismi BILEREK sadece gelistirme modunda -- bkz. dosya
+        # basi/__init__ notu (kimlik bilgisi hala kisisel, musteriye gitmiyor).
+        if not getattr(sys, "frozen", False):
+            easy_box = ttk.LabelFrame(frm, text="EasyCentral (iç kullanım)")
+            easy_box.grid(row=0, column=1, sticky="new", rowspan=1, padx=(8, 0))
+
+            ttk.Button(
+                easy_box, text="inventory-list.csv Çek",
+                command=self.envanter_fetch_easycentral,
+            ).pack(anchor="w", padx=6, pady=6)
+            ttk.Label(
+                easy_box,
+                text="Debug Chrome'da EasyCentral'a giriş yapılmış olmalı\n(Easy'e Gönder sekmesindeki 1. adımla açabilirsin).",
+                foreground="#777", justify="left",
+            ).pack(anchor="w", padx=6, pady=(0, 6))
+
+        row += 1
+        self.envanter_status_label = ttk.Label(
+            frm, text="", foreground="#555", wraplength=780, justify="left"
+        )
+        self.envanter_status_label.grid(row=row, column=0, columnspan=3, sticky="w", pady=(10, 0))
+
+    def _envanter_report(self, message):
+        self.event_queue.put(("envanter_status", message))
+
+    def _amazon_sp_api_credentials_or_warn(self):
+        creds = amazon_sp_api_settings.load_credentials()
+        if not creds:
+            messagebox.showwarning(
+                "Kimlik bilgisi eksik",
+                "Önce Ayarlar menüsünden (ya da bu sekmedeki 'Kimlik Bilgilerini Kaydet...' "
+                "butonundan) Amazon SP-API bilgilerini girmen gerekiyor.",
+            )
+            return None
+        return creds
+
+    def envanter_fetch_amazon_business(self):
+        creds = self._amazon_sp_api_credentials_or_warn()
+        if not creds:
+            return
+        out_path = BASE_DIR / "keepa_full_kontrol" / "amazon_business_report.csv"
+
+        preset = self.business_range_var.get()
+        days = self.BUSINESS_REPORT_RANGE_PRESETS.get(preset)
+        start_date = end_date = None
+        if days is None:
+            start_date = self.business_start_date_var.get().strip()
+            end_date = self.business_end_date_var.get().strip()
+            if not start_date or not end_date:
+                messagebox.showwarning(
+                    "Eksik tarih", "Özel tarih aralığı için başlangıç ve bitiş tarihini gir (YYYY-AA-GG)."
+                )
+                return
+
+        def do_fetch():
+            result = amazon_sp_api.fetch_business_report(
+                out_path, days=days or 30, start_date=start_date, end_date=end_date,
+                progress=self._envanter_report,
+                credentials=creds, marketplace_id=creds["marketplace_id"], sp_api_base=creds["sp_api_base"],
+            )
+            self._envanter_report(result.get("message", ""))
+
+        threading.Thread(target=do_fetch, daemon=True).start()
+
+    def envanter_fetch_amazon_inventory(self):
+        creds = self._amazon_sp_api_credentials_or_warn()
+        if not creds:
+            return
+        out_path = BASE_DIR / "keepa_full_kontrol" / "amazon_inventory.csv"
+
+        def do_fetch():
+            result = amazon_sp_api.fetch_inventory_report(
+                out_path, progress=self._envanter_report,
+                credentials=creds, marketplace_id=creds["marketplace_id"], sp_api_base=creds["sp_api_base"],
+            )
+            self._envanter_report(result.get("message", ""))
+
+        threading.Thread(target=do_fetch, daemon=True).start()
+
+    def envanter_fetch_easycentral(self):
+        out_path = BASE_DIR / "keepa_full_kontrol" / "easycentral_inventory.csv"
+
+        def do_fetch():
+            result = easycentral_inventory.fetch_inventory(
+                out_path, debug_address=DEBUG_ADDRESS, progress=self._envanter_report
+            )
+            self._envanter_report(result.get("message", ""))
+
+        threading.Thread(target=do_fetch, daemon=True).start()
+
     # ------------------------------------------------------------------- ui
     def _build_ui(self, parent):
         frm = ttk.Frame(parent, padding=7)
@@ -2260,14 +2430,6 @@ class KeepaApp:
             "kendi tahminini üretir.",
         )
 
-    def apply_view_mode(self):
-        compact = self.view_mode_var.get() == "compact"
-        self.log_text.configure(height=4 if compact else 5)
-        self.error_text.configure(height=2 if compact else 3)
-        self.progress.configure(length=220 if compact else 350)
-        self.root.update_idletasks()
-        self.root.geometry("")
-
     def show_account_dialog(self):
         dialog = tk.Toplevel(self.root)
         dialog.title("Keepa Hesabı")
@@ -2366,6 +2528,98 @@ class KeepaApp:
         btn_row.pack(pady=15)
         ttk.Button(btn_row, text="Kaydet", command=do_save).grid(row=0, column=0, padx=5)
         ttk.Button(btn_row, text="Hesabımı Kontrol Et", command=do_check).grid(row=0, column=1, padx=5)
+        ttk.Button(btn_row, text="Kapat", command=dialog.destroy).grid(row=0, column=2, padx=5)
+
+    def show_amazon_sp_api_settings_dialog(self):
+        """Musterinin KENDI Amazon magazasina baglanmasi icin SP-API kimlik
+        bilgilerini (Client ID/Secret/Refresh Token) ve pazar yerini
+        girip amazon_sp_api_settings.py (keyring) uzerinden kaydetmesini
+        saglar -- keepa_api_settings ile AYNI desen (bkz. show_api_settings_dialog)."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Amazon SP-API Ayarları")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        ttk.Label(
+            dialog, text="Envanter Çek sekmesi için kendi Amazon mağazanın SP-API bilgilerini gir.",
+            font=("Segoe UI", 10, "bold"),
+        ).pack(padx=20, pady=(15, 5))
+
+        info_text = scrolledtext.ScrolledText(dialog, width=78, height=16, wrap="word")
+        info_text.pack(padx=20, pady=(0, 10))
+        info_text.insert("1.0", amazon_sp_api_settings.INSTRUCTIONS)
+        info_text.configure(state="disabled")
+
+        existing = amazon_sp_api_settings.load_credentials() or {}
+
+        form = ttk.Frame(dialog, padding=(20, 0))
+        form.pack(fill="x")
+
+        ttk.Label(form, text="Pazar Yeri:").grid(row=0, column=0, sticky="w", pady=3)
+        marketplace_var = tk.StringVar(value=existing.get("marketplace_name") or "Japonya (JP)")
+        ttk.Combobox(
+            form, textvariable=marketplace_var,
+            values=list(amazon_sp_api_settings.MARKETPLACES.keys()),
+            state="readonly", width=48,
+        ).grid(row=0, column=1, padx=8, sticky="ew")
+
+        ttk.Label(form, text="Client ID:").grid(row=1, column=0, sticky="w", pady=3)
+        client_id_var = tk.StringVar(value=existing.get("client_id", ""))
+        ttk.Entry(form, textvariable=client_id_var, width=50).grid(row=1, column=1, padx=8, sticky="ew")
+
+        ttk.Label(form, text="Client Secret:").grid(row=2, column=0, sticky="w", pady=3)
+        client_secret_var = tk.StringVar(value=existing.get("client_secret", ""))
+        ttk.Entry(form, textvariable=client_secret_var, width=50, show="*").grid(row=2, column=1, padx=8, sticky="ew")
+
+        ttk.Label(form, text="Refresh Token:").grid(row=3, column=0, sticky="w", pady=3)
+        refresh_token_var = tk.StringVar(value=existing.get("refresh_token", ""))
+        ttk.Entry(form, textvariable=refresh_token_var, width=50, show="*").grid(row=3, column=1, padx=8, sticky="ew")
+
+        status_label = ttk.Label(dialog, text="", justify="center", wraplength=560)
+        status_label.pack(padx=20, pady=(10, 0))
+
+        def do_save():
+            try:
+                amazon_sp_api_settings.save_credentials(
+                    client_id_var.get(), client_secret_var.get(), refresh_token_var.get(), marketplace_var.get()
+                )
+                status_label.config(text="Kaydedildi.", foreground="#0a5")
+            except Exception as error:
+                messagebox.showerror("Hata", f"Kaydedilemedi: {error}", parent=dialog)
+
+        def do_check():
+            try:
+                amazon_sp_api_settings.save_credentials(
+                    client_id_var.get(), client_secret_var.get(), refresh_token_var.get(), marketplace_var.get()
+                )
+            except Exception as error:
+                messagebox.showerror("Hata", f"Önce geçerli bilgiler gir: {error}", parent=dialog)
+                return
+            status_label.config(text="Bağlantı test ediliyor...", foreground="#555")
+            dialog.update_idletasks()
+            try:
+                creds = amazon_sp_api_settings.load_credentials()
+                access_token = amazon_sp_api.get_access_token(creds)
+                result = amazon_sp_api._sp_api_request(
+                    access_token, "GET", "/sellers/v1/marketplaceParticipations",
+                    sp_api_base=creds["sp_api_base"],
+                )
+                marketplaces = [
+                    p.get("marketplace", {}).get("name")
+                    for p in result.get("payload", [])
+                ]
+                status_label.config(
+                    text=f"Bağlantı başarılı — erişimin olan pazar yerleri: {', '.join(m for m in marketplaces if m)}",
+                    foreground="#0a5",
+                )
+            except Exception as error:
+                status_label.config(text=f"Bağlantı başarısız: {error}", foreground="#b00")
+
+        btn_row = ttk.Frame(dialog)
+        btn_row.pack(pady=15)
+        ttk.Button(btn_row, text="Kaydet", command=do_save).grid(row=0, column=0, padx=5)
+        ttk.Button(btn_row, text="Bağlantıyı Test Et", command=do_check).grid(row=0, column=1, padx=5)
         ttk.Button(btn_row, text="Kapat", command=dialog.destroy).grid(row=0, column=2, padx=5)
 
     def _login_keepa(self, username, password):
@@ -2888,6 +3142,10 @@ class KeepaApp:
                     self.update_license_status()
                 elif kind == "send_status":
                     self.send_status_label.config(text=payload)
+                elif kind == "envanter_status":
+                    label = getattr(self, "envanter_status_label", None)
+                    if label is not None:
+                        label.config(text=payload)
                 elif kind == "info":
                     messagebox.showinfo("Bilgi", payload)
                 elif kind == "fatal_error":
